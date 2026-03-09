@@ -742,6 +742,7 @@ export function createBoatController() {
   let lateralSpeed = 0;   // sideways speed (drift)
   let yawRate = 0;        // angular velocity (rad/s)
   let visualRoll = 0;     // cosmetic heel angle
+  let boostAmount = 0;    // smooth 0-1 ramp for boost visual
 
   // Tuning — arcade boat feel
   const thrust = 80;              // forward force (ramps to full speed in ~2s)
@@ -767,15 +768,22 @@ export function createBoatController() {
     // Clamp delta to avoid physics explosion on tab-away
     const dt = Math.min(delta, 0.05);
 
+    // --- Boost (shift) ---
+    const boosting = keys['shift'];
+    const boostTarget = boosting ? 1 : 0;
+    boostAmount += (boostTarget - boostAmount) * Math.min(1, (boosting ? 6 : 3) * dt);
+    const boostMul = 1 + boostAmount * 1.8; // up to 2.8x thrust
+    const dragMul = 1 / (1 + boostAmount * 1.2); // less drag while boosting
+
     // --- Forward / backward thrust ---
     if (keys['w'] || keys['arrowup']) {
-      speed += thrust * dt;
+      speed += thrust * boostMul * dt;
     } else if (keys['s'] || keys['arrowdown']) {
       speed -= reverseThrust * dt;
     }
 
     // --- Quadratic drag on forward speed ---
-    speed -= forwardDrag * speed * Math.abs(speed) * dt;
+    speed -= forwardDrag * dragMul * speed * Math.abs(speed) * dt;
 
     // --- Turning ---
     // Turn rate scales with speed (sqrt curve) with a minimum
@@ -826,6 +834,9 @@ export function createBoatController() {
     // Combine wave tilt with visual heel
     boat.rotation.z = visualRoll + Math.sin(time * 1.8) * 0.03;
     boat.rotation.x = Math.sin(time * 1.2) * 0.02;
+
+    // Expose speed for other systems (wind effect etc.)
+    boat.userData._windSpeed = speed;
 
     // --- Sail wind animation ---
     const windStrength = Math.min(Math.abs(speed) / 30, 1.0); // 0 to 1 based on speed
@@ -886,5 +897,9 @@ export function createBoatController() {
     return { forward: speed, turn: yawRate };
   }
 
-  return { update, keys, get velocity() { return { forward: speed, turn: yawRate }; } };
+  return {
+    update, keys,
+    get velocity() { return { forward: speed, turn: yawRate }; },
+    get boostAmount() { return boostAmount; },
+  };
 }

@@ -3,9 +3,10 @@ import { createOcean } from './ocean.js';
 import { createBoat, createBoatController } from './boat.js';
 import { createCrateManager } from './crates.js';
 import { createIslands } from './islands.js';
+import { createWindEffect } from './windEffect.js';
 
 let camera, scene, renderer;
-let water, boat, boatController, crateManager;
+let water, boat, boatController, crateManager, windEffect;
 
 const clock = new THREE.Clock();
 
@@ -63,8 +64,12 @@ function init() {
     20000
   );
   camera.position.set(0, 15, 35);
+  scene.add(camera);
 
-  // Lightingd
+  // Wind boost effect (3D streaks in world space)
+  windEffect = createWindEffect(scene);
+
+  // Lighting
   const ambientLight = new THREE.AmbientLight(0x445566, 0.4);
   scene.add(ambientLight);
 
@@ -138,6 +143,9 @@ function animate() {
 
   // Update crates
   crateManager.update(boat.position, time);
+
+  // Wind boost visual
+  windEffect.update(time, boatController.boostAmount, boat);
 
   // Camera follow
   updateCamera(delta);
