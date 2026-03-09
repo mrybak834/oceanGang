@@ -18,9 +18,9 @@ export function createOcean(scene, renderer) {
     ),
     sunDirection: new THREE.Vector3(),
     sunColor: 0xffffff,
-    waterColor: 0x0064b5,
-    distortionScale: 1.0,
-    alpha: 0.9,
+    waterColor: 0x003366,
+    distortionScale: 3.7,
+    alpha: 1.0,
     fog: scene.fog !== undefined,
   });
   water.rotation.x = -Math.PI / 2;
@@ -32,13 +32,13 @@ export function createOcean(scene, renderer) {
   scene.add(sky);
 
   const skyUniforms = sky.material.uniforms;
-  skyUniforms['turbidity'].value = 2;
-  skyUniforms['rayleigh'].value = 1;
-  skyUniforms['mieCoefficient'].value = 0.005;
-  skyUniforms['mieDirectionalG'].value = 0.8;
+  skyUniforms['turbidity'].value = 3;
+  skyUniforms['rayleigh'].value = 1.2;
+  skyUniforms['mieCoefficient'].value = 0.002;
+  skyUniforms['mieDirectionalG'].value = 0.75;
 
-  // Sun position
-  const parameters = { elevation: 45, azimuth: 180 };
+  // Sun position — higher sun for even, warm lighting
+  const parameters = { elevation: 50, azimuth: 200 };
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   const sceneEnv = new THREE.Scene();
   let renderTarget;
@@ -62,38 +62,61 @@ export function createOcean(scene, renderer) {
 
   updateSun();
 
-  // Clouds
-  const clouds = new THREE.Group();
-  const cloudMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 1.0,
-    metalness: 0.0,
-    transparent: true,
-    opacity: 0.6,
-    depthWrite: false,
-  });
+  // Clouds — procedural canvas texture billboards that stay at the horizon
+  function makeCloudTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
 
-  for (let i = 0; i < 25; i++) {
-    const cloud = new THREE.Group();
-    const puffCount = 3 + Math.floor(Math.random() * 4);
-    for (let j = 0; j < puffCount; j++) {
-      const size = 40 + Math.random() * 60;
-      const puffGeo = new THREE.SphereGeometry(size, 8, 6);
-      const puff = new THREE.Mesh(puffGeo, cloudMaterial);
-      puff.position.set(
-        (Math.random() - 0.5) * size * 1.5,
-        (Math.random() - 0.3) * size * 0.4,
-        (Math.random() - 0.5) * size * 1.2
-      );
-      puff.scale.y = 0.4 + Math.random() * 0.2;
-      cloud.add(puff);
+    // Draw several overlapping soft ellipses to form a cloud
+    const puffs = 4 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < puffs; i++) {
+      const x = 60 + Math.random() * 136;
+      const y = 40 + Math.random() * 48;
+      const rx = 30 + Math.random() * 50;
+      const ry = 15 + Math.random() * 25;
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, rx);
+      gradient.addColorStop(0, 'rgba(255,255,255,1.0)');
+      gradient.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+      gradient.addColorStop(0.7, 'rgba(240,240,255,0.2)');
+      gradient.addColorStop(1, 'rgba(220,230,255,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
-    cloud.position.set(
-      (Math.random() - 0.5) * 6000,
-      200 + Math.random() * 150,
-      (Math.random() - 0.5) * 6000
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  const clouds = new THREE.Group();
+
+  for (let i = 0; i < 20; i++) {
+    const texture = makeCloudTexture();
+    const spriteMat = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.55 + Math.random() * 0.3,
+      depthWrite: false,
+      fog: true,
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+
+    // Place in a ring around origin, far away and high up
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 3000 + Math.random() * 4000;
+    const height = 500 + Math.random() * 600;
+    sprite.position.set(
+      Math.cos(angle) * dist,
+      height,
+      Math.sin(angle) * dist
     );
-    clouds.add(cloud);
+    const s = 400 + Math.random() * 500;
+    sprite.scale.set(s * 2, s, 1);
+    clouds.add(sprite);
   }
   scene.add(clouds);
 
