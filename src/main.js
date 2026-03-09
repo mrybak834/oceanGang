@@ -9,7 +9,10 @@ let water, boat, boatController, crateManager;
 const clock = new THREE.Clock();
 
 // Camera follow settings
-const cameraOffset = new THREE.Vector3(0, 60, 60);
+let zoomLevel = 1.0;
+const zoomMin = 0.3;
+const zoomMax = 3.0;
+const baseCameraOffset = new THREE.Vector3(0, 40, 50);
 const cameraLookOffset = new THREE.Vector3(0, 0, 0);
 
 init();
@@ -57,6 +60,12 @@ function init() {
   crateManager = createCrateManager(scene);
   crateManager.init(boat.position);
 
+  // Zoom (scroll wheel)
+  window.addEventListener('wheel', (e) => {
+    zoomLevel += e.deltaY * 0.001;
+    zoomLevel = Math.max(zoomMin, Math.min(zoomMax, zoomLevel));
+  });
+
   // Resize
   window.addEventListener('resize', onWindowResize);
 }
@@ -88,7 +97,7 @@ function animate() {
 
 function updateCamera(delta) {
   // Calculate desired camera position relative to boat
-  const offset = cameraOffset.clone();
+  const offset = baseCameraOffset.clone().multiplyScalar(zoomLevel);
   offset.applyQuaternion(boat.quaternion);
   const desiredPosition = boat.position.clone().add(offset);
 

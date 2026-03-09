@@ -294,6 +294,9 @@ export function createBoat(scene) {
   anchorRing.rotation.y = Math.PI / 2;
   boat.add(anchorRing);
 
+  // Scale the entire boat up so deck and levels are clearly visible
+  boat.scale.set(2.5, 2.5, 2.5);
+
   // Store flag reference for animation
   boat.userData.flag = flag;
   boat.userData.mainSail = mainSail;
