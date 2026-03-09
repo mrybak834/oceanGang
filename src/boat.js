@@ -167,11 +167,10 @@ export function createBoat(scene) {
     roughness: 0.7,
   });
   const sailMaterial = new THREE.MeshStandardMaterial({
-    color: 0xfaf0e6,
-    roughness: 0.7,
+    color: 0xfdf5e6,
+    roughness: 0.85,
+    metalness: 0.0,
     side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.92,
   });
 
   // --- Hull (single continuous mesh) ---
@@ -315,47 +314,67 @@ export function createBoat(scene) {
   foreMast.position.set(0, 4.6, -3.5);
   boat.add(foreMast);
 
-  // --- Main Sail ---
-  const mainSailShape = new THREE.Shape();
-  mainSailShape.moveTo(0, 0);
-  mainSailShape.lineTo(0, 6.5);
-  mainSailShape.quadraticCurveTo(2.0, 5.5, 3.5, 2.0);
-  mainSailShape.quadraticCurveTo(2.5, 0.5, 0, 0);
-  const mainSailGeo = new THREE.ShapeGeometry(mainSailShape, 12);
+  // --- Main Sail (subdivided for wind deformation) ---
+  const mainSailGeo = new THREE.PlaneGeometry(3.5, 6.5, 10, 14);
   const mainSail = new THREE.Mesh(mainSailGeo, sailMaterial);
-  mainSail.position.set(0, 2.8, -0.5);
+  mainSail.position.set(0, 6.0, -0.5);
   mainSail.rotation.y = -Math.PI / 2;
+  // Taper: make it triangular by pulling top-right vertices toward mast
+  const msPos = mainSailGeo.attributes.position;
+  for (let i = 0; i < msPos.count; i++) {
+    const x = msPos.getX(i); // horizontal (becomes depth via rotation)
+    const y = msPos.getY(i); // vertical
+    // Normalize y from -3.25 to 3.25 -> 0 to 1
+    const ny = (y + 3.25) / 6.5;
+    // Taper width: full at bottom, narrow at top
+    const taper = 1.0 - ny * 0.7;
+    // Only allow positive x (billowing outward), clamp left edge to mast
+    const nx = (x + 1.75) / 3.5; // 0=left(mast), 1=right(outward)
+    const newX = -1.75 + nx * taper * 3.5;
+    msPos.setX(i, Math.max(-1.75, newX));
+  }
+  msPos.needsUpdate = true;
+  mainSailGeo.computeVertexNormals();
+  // Store base positions for animation
+  mainSailGeo.userData = { basePositions: new Float32Array(msPos.array) };
   boat.add(mainSail);
 
-  // --- Fore Sail ---
-  const foreSailShape = new THREE.Shape();
-  foreSailShape.moveTo(0, 0);
-  foreSailShape.lineTo(0, 4.5);
-  foreSailShape.quadraticCurveTo(1.5, 3.5, 2.5, 1.0);
-  foreSailShape.quadraticCurveTo(1.5, 0.2, 0, 0);
-  const foreSailGeo = new THREE.ShapeGeometry(foreSailShape, 10);
+  // --- Fore Sail (subdivided) ---
+  const foreSailGeo = new THREE.PlaneGeometry(2.5, 4.5, 8, 10);
   const foreSail = new THREE.Mesh(foreSailGeo, sailMaterial);
-  foreSail.position.set(0, 1.8, -3.5);
+  foreSail.position.set(0, 4.0, -3.5);
   foreSail.rotation.y = -Math.PI / 2;
+  const fsPos = foreSailGeo.attributes.position;
+  for (let i = 0; i < fsPos.count; i++) {
+    const x = fsPos.getX(i);
+    const y = fsPos.getY(i);
+    const ny = (y + 2.25) / 4.5;
+    const taper = 1.0 - ny * 0.75;
+    const nx = (x + 1.25) / 2.5;
+    fsPos.setX(i, Math.max(-1.25, -1.25 + nx * taper * 2.5));
+  }
+  fsPos.needsUpdate = true;
+  foreSailGeo.computeVertexNormals();
+  foreSailGeo.userData = { basePositions: new Float32Array(fsPos.array) };
   boat.add(foreSail);
 
-  // --- Jib ---
-  const jibShape = new THREE.Shape();
-  jibShape.moveTo(0, 0);
-  jibShape.lineTo(-0.3, 5.0);
-  jibShape.quadraticCurveTo(1.2, 3.5, 2.2, 0.3);
-  jibShape.lineTo(0, 0);
-  const jibGeo = new THREE.ShapeGeometry(jibShape, 8);
-  const jibMat = new THREE.MeshStandardMaterial({
-    color: 0xf5efe0,
-    roughness: 0.7,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.88,
-  });
-  const jib = new THREE.Mesh(jibGeo, jibMat);
-  jib.position.set(0, 1.8, -5.5);
+  // --- Jib (triangular, subdivided) ---
+  const jibGeo = new THREE.PlaneGeometry(2.2, 5.0, 7, 12);
+  const jib = new THREE.Mesh(jibGeo, sailMaterial);
+  jib.position.set(0, 4.0, -5.5);
   jib.rotation.y = -Math.PI / 2;
+  const jPos = jibGeo.attributes.position;
+  for (let i = 0; i < jPos.count; i++) {
+    const x = jPos.getX(i);
+    const y = jPos.getY(i);
+    const ny = (y + 2.5) / 5.0;
+    const taper = 1.0 - ny * 0.85;
+    const nx = (x + 1.1) / 2.2;
+    jPos.setX(i, Math.max(-1.1, -1.1 + nx * taper * 2.2));
+  }
+  jPos.needsUpdate = true;
+  jibGeo.computeVertexNormals();
+  jibGeo.userData = { basePositions: new Float32Array(jPos.array) };
   boat.add(jib);
 
   // --- Boom ---
@@ -473,6 +492,148 @@ export function createBoat(scene) {
   anchorRing.rotation.y = Math.PI / 2;
   boat.add(anchorRing);
 
+  // --- Crew members (sailors) ---
+  function createSailor(x, z, rotY, opts = {}) {
+    const person = new THREE.Group();
+    const {
+      skinColor = 0xd4a574,
+      shirtColor = 0xe8e0d0,
+      vestColor = null,
+      trouserColor = 0x2b3d5e,
+      hatType = 'bandana',
+      hatColor = 0xaa2222,
+      hasBeard = false,
+    } = opts;
+
+    const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.75 });
+
+    // Boots
+    const bootMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 0.9 });
+    for (const side of [-0.055, 0.055]) {
+      const bootGeo = new THREE.CylinderGeometry(0.05, 0.055, 0.18, 5);
+      const boot = new THREE.Mesh(bootGeo, bootMat);
+      boot.position.set(side, 0.09, 0);
+      person.add(boot);
+    }
+
+    // Trousers / legs
+    const trouserMat = new THREE.MeshStandardMaterial({ color: trouserColor, roughness: 0.85 });
+    for (const side of [-0.055, 0.055]) {
+      const legGeo = new THREE.CylinderGeometry(0.045, 0.05, 0.25, 5);
+      const leg = new THREE.Mesh(legGeo, trouserMat);
+      leg.position.set(side, 0.3, 0);
+      person.add(leg);
+    }
+
+    // Shirt / tunic
+    const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.8 });
+    const bodyGeo = new THREE.CylinderGeometry(0.11, 0.13, 0.35, 6);
+    const body = new THREE.Mesh(bodyGeo, shirtMat);
+    body.position.y = 0.6;
+    person.add(body);
+
+    // Vest / waistcoat (if provided)
+    if (vestColor) {
+      const vestMat = new THREE.MeshStandardMaterial({ color: vestColor, roughness: 0.7 });
+      const vestGeo = new THREE.CylinderGeometry(0.115, 0.135, 0.3, 6);
+      const vest = new THREE.Mesh(vestGeo, vestMat);
+      vest.position.y = 0.6;
+      person.add(vest);
+    }
+
+    // Belt / sash
+    const beltMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.7 });
+    const beltGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.05, 8);
+    const belt = new THREE.Mesh(beltGeo, beltMat);
+    belt.position.y = 0.45;
+    person.add(belt);
+
+    // Arms
+    for (const side of [-1, 1]) {
+      const armGeo = new THREE.CylinderGeometry(0.03, 0.035, 0.32, 5);
+      const arm = new THREE.Mesh(armGeo, shirtMat);
+      arm.position.set(side * 0.15, 0.55, 0);
+      arm.rotation.z = side * 0.15;
+      person.add(arm);
+      // Hands
+      const handGeo = new THREE.SphereGeometry(0.035, 5, 5);
+      const hand = new THREE.Mesh(handGeo, skinMat);
+      hand.position.set(side * 0.17, 0.38, 0);
+      person.add(hand);
+    }
+
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.1, 8, 6);
+    const head = new THREE.Mesh(headGeo, skinMat);
+    head.position.y = 0.87;
+    person.add(head);
+
+    // Beard
+    if (hasBeard) {
+      const beardMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
+      const beardGeo = new THREE.SphereGeometry(0.07, 6, 4, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.5);
+      const beard = new THREE.Mesh(beardGeo, beardMat);
+      beard.position.set(0, 0.82, 0.04);
+      person.add(beard);
+    }
+
+    // Hat
+    const hatMat = new THREE.MeshStandardMaterial({ color: hatColor, roughness: 0.7 });
+    if (hatType === 'bandana') {
+      const bandanaGeo = new THREE.SphereGeometry(0.105, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.5);
+      const bandana = new THREE.Mesh(bandanaGeo, hatMat);
+      bandana.position.y = 0.9;
+      person.add(bandana);
+    } else if (hatType === 'tricorn') {
+      // Brim
+      const brimGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.02, 3);
+      const brim = new THREE.Mesh(brimGeo, hatMat);
+      brim.position.y = 0.96;
+      brim.rotation.y = Math.PI / 6;
+      person.add(brim);
+      // Crown
+      const crownGeo = new THREE.CylinderGeometry(0.06, 0.09, 0.1, 6);
+      const crown = new THREE.Mesh(crownGeo, hatMat);
+      crown.position.y = 1.02;
+      person.add(crown);
+    } else if (hatType === 'cap') {
+      const capGeo = new THREE.SphereGeometry(0.11, 6, 4, 0, Math.PI * 2, 0, Math.PI * 0.45);
+      const cap = new THREE.Mesh(capGeo, hatMat);
+      cap.position.y = 0.91;
+      person.add(cap);
+      // Visor
+      const visorGeo = new THREE.BoxGeometry(0.1, 0.015, 0.08);
+      const visor = new THREE.Mesh(visorGeo, hatMat);
+      visor.position.set(0, 0.92, 0.1);
+      person.add(visor);
+    }
+
+    person.position.set(x, 1.1, z);
+    person.rotation.y = rotY;
+    return person;
+  }
+
+  // Captain at the helm (tricorn hat, dark vest, beard)
+  boat.add(createSailor(0, 3.8, 0, {
+    hatType: 'tricorn', hatColor: 0x1a1a2e, vestColor: 0x2a1a0a,
+    shirtColor: 0xe8dcc8, trouserColor: 0x1a1a2e, hasBeard: true,
+  }));
+  // First mate lookout at bow (bandana, weathered)
+  boat.add(createSailor(0, -4.5, Math.PI, {
+    hatType: 'bandana', hatColor: 0xcc3333, vestColor: 0x4a3520,
+    shirtColor: 0xd4c8b0, skinColor: 0xc4915a,
+  }));
+  // Deckhand by the main mast
+  boat.add(createSailor(0.5, 0.5, -0.3, {
+    hatType: 'bandana', hatColor: 0x2255aa,
+    shirtColor: 0xccc4b0, trouserColor: 0x3a3a2e,
+  }));
+  // Bosun near fore mast (cap, sturdy)
+  boat.add(createSailor(-0.4, -1.5, 0.5, {
+    hatType: 'cap', hatColor: 0x3a3a3a,
+    shirtColor: 0xbbb8a8, trouserColor: 0x2a2a20, hasBeard: true, skinColor: 0xc89870,
+  }));
+
   // --- Scale up ---
   boat.scale.set(2.5, 2.5, 2.5);
 
@@ -496,9 +657,9 @@ export function createBoatController() {
   let visualRoll = 0;     // cosmetic heel angle
 
   // Tuning — arcade boat feel
-  const thrust = 200;            // forward force
-  const reverseThrust = 80;     // backward force
-  const forwardDrag = 0.08;     // quadratic drag on forward axis
+  const thrust = 80;              // forward force (ramps to full speed in ~2s)
+  const reverseThrust = 40;     // backward force
+  const forwardDrag = 0.035;    // quadratic drag — terminal speed ~48
   const lateralDrag = 3.0;      // high lateral drag — resists sideways slide
   const angularDrag = 4.0;      // damps rotation when not turning
   const maxTurnRate = 3.0;      // rad/s at full speed
@@ -579,10 +740,44 @@ export function createBoatController() {
     boat.rotation.z = visualRoll + Math.sin(time * 1.8) * 0.03;
     boat.rotation.x = Math.sin(time * 1.2) * 0.02;
 
+    // --- Sail wind animation ---
+    const windStrength = Math.min(Math.abs(speed) / 30, 1.0); // 0 to 1 based on speed
+    const windBase = 0.35; // ambient wind billow even when still
+    const billow = windBase + windStrength * 0.85;
+
+    function animateSail(mesh, amplitude) {
+      const geo = mesh.geometry;
+      if (!geo.userData || !geo.userData.basePositions) return;
+      const pos = geo.attributes.position;
+      const base = geo.userData.basePositions;
+      const halfW = geo.parameters.width / 2;
+      const halfH = geo.parameters.height / 2;
+
+      for (let i = 0; i < pos.count; i++) {
+        const bx = base[i * 3];
+        const by = base[i * 3 + 1];
+        // Normalized position: nx = 0 at mast, 1 at far edge; ny = 0 at bottom, 1 at top
+        const nx = (bx + halfW) / geo.parameters.width;
+        const ny = (by + halfH) / geo.parameters.height;
+        // Billow: pushes outward (z in local sail space), strongest at center
+        const curve = Math.sin(nx * Math.PI) * Math.sin(ny * Math.PI);
+        // Add ripple waves traveling along the sail
+        const ripple = Math.sin(ny * 6 + time * 3) * 0.08 * nx;
+        const flutter = Math.sin(ny * 10 + nx * 4 + time * 8) * 0.03 * nx * windStrength;
+        pos.setZ(i, (curve * amplitude * billow + ripple + flutter));
+      }
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+    }
+
+    if (boat.userData.mainSail) animateSail(boat.userData.mainSail, 1.2);
+    if (boat.userData.foreSail) animateSail(boat.userData.foreSail, 0.8);
+    if (boat.userData.jib) animateSail(boat.userData.jib, 0.7);
+
     // --- Flag flutter ---
     if (boat.userData.flag) {
-      boat.userData.flag.rotation.y = -Math.PI / 2 + Math.sin(time * 4) * 0.15;
-      boat.userData.flag.position.x = Math.sin(time * 5) * 0.05;
+      boat.userData.flag.rotation.y = -Math.PI / 2 + Math.sin(time * 4) * 0.2 * billow;
+      boat.userData.flag.position.x = Math.sin(time * 5) * 0.08 * billow;
     }
 
     return { forward: speed, turn: yawRate };
