@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 
-const STREAK_COUNT = 120;
-const VOLUME = 70;
+const STREAK_COUNT = 150;
 const HEIGHT_MIN = 1;
-const HEIGHT_MAX = 14;
+const HEIGHT_MAX_BASE = 15;
 
 export function createWindEffect(scene) {
   const geo = new THREE.PlaneGeometry(1, 1);
@@ -27,19 +26,19 @@ export function createWindEffect(scene) {
 
   for (let i = 0; i < STREAK_COUNT; i++) {
     streaks.push({
-      x: (Math.random() - 0.5) * VOLUME * 2,
-      y: HEIGHT_MIN + Math.random() * (HEIGHT_MAX - HEIGHT_MIN),
-      z: (Math.random() - 0.5) * VOLUME * 2,
-      baseLen: 2.5 + Math.random() * 5,
-      thickness: 0.04 + Math.random() * 0.1,
+      // Normalized offsets -1..1, scaled by volume each frame
+      nx: (Math.random() - 0.5) * 2,
+      ny: Math.random(),
+      nz: (Math.random() - 0.5) * 2,
+      baseLenN: 0.03 + Math.random() * 0.06,   // length as fraction of volume
+      thicknessN: 0.001 + Math.random() * 0.002, // thickness as fraction of volume
       speedMul: 0.6 + Math.random() * 0.8,
     });
   }
 
-  // Smoothed wind direction (lags behind boat heading)
   let windAngle = 0;
 
-  function update(time, boostAmount, boat) {
+  function update(time, boostAmount, boat, camera) {
     const speed = boat.userData._windSpeed || 0;
     const absSpeed = Math.abs(speed);
     const speedNorm = Math.min(absSpeed / 35, 1);
@@ -54,45 +53,49 @@ export function createWindEffect(scene) {
 
     const dt = 1 / 60;
 
-    // Target angle = boat heading. Wind angle follows with lag.
+    // Scale volume to camera distance so streaks always fill the view
+    const camDist = camera.position.distanceTo(boat.position);
+    const vol = Math.max(80, camDist * 1.6);
+    const heightMax = Math.max(HEIGHT_MAX_BASE, camDist * 0.25);
+
+    // Smooth-follow boat heading
     const boatAngle = boat.rotation.y;
-    // Smooth follow — slight lag so turns feel natural
     let diff = boatAngle - windAngle;
-    // Wrap to -PI..PI
     diff = ((diff + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
     windAngle += diff * 12.0 * dt;
 
     const dirX = Math.sin(windAngle);
     const dirZ = Math.cos(windAngle);
 
-    // Streaks move toward camera = backward along boat direction
-    // Speed proportional to boat speed + boost
     const moveSpeed = absSpeed * (1 + boostAmount * 2.5);
 
     for (let i = 0; i < STREAK_COUNT; i++) {
       const s = streaks[i];
 
-      // Move streak backward (toward camera)
-      s.x += dirX * moveSpeed * s.speedMul * dt;
-      s.z += dirZ * moveSpeed * s.speedMul * dt;
+      // Move in world space along wind direction
+      s.nx += (dirX * moveSpeed * s.speedMul * dt) / vol;
+      s.nz += (dirZ * moveSpeed * s.speedMul * dt) / vol;
 
-      // Recycle when too far from boat
-      const dx = s.x - boat.position.x;
-      const dz = s.z - boat.position.z;
-      if (dx * dx + dz * dz > VOLUME * VOLUME) {
-        // Respawn ahead of boat
-        const spread = (Math.random() - 0.5) * VOLUME * 1.4;
-        const ahead = VOLUME * (0.3 + Math.random() * 0.7);
-        s.x = boat.position.x - dirX * ahead + dirZ * spread;
-        s.z = boat.position.z - dirZ * ahead - dirX * spread;
-        s.y = HEIGHT_MIN + Math.random() * (HEIGHT_MAX - HEIGHT_MIN);
+      // Recycle when out of bounds (-1..1 normalized)
+      if (s.nx > 1 || s.nx < -1 || s.nz > 1 || s.nz < -1) {
+        // Respawn ahead of boat (upwind side)
+        const spread = (Math.random() - 0.5) * 1.8;
+        const ahead = 0.3 + Math.random() * 0.7;
+        s.nx = -dirX * ahead + dirZ * spread;
+        s.nz = -dirZ * ahead - dirX * spread;
+        s.ny = Math.random();
       }
 
-      dummy.position.set(s.x, s.y, s.z);
-      // Orient along wind direction
+      // Convert normalized to world position centered on boat
+      const wx = boat.position.x + s.nx * vol;
+      const wy = HEIGHT_MIN + s.ny * (heightMax - HEIGHT_MIN);
+      const wz = boat.position.z + s.nz * vol;
+
+      dummy.position.set(wx, wy, wz);
       dummy.rotation.set(0, windAngle, 0);
-      const len = s.baseLen * (0.3 + visibility * 2.0);
-      dummy.scale.set(1, s.thickness * (0.5 + visibility), len);
+      const len = s.baseLenN * vol * (0.3 + visibility * 2.0);
+      const thick = s.thicknessN * vol * (0.5 + visibility);
+      dummy.scale.set(1, thick, len);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     }

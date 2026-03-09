@@ -145,7 +145,7 @@ function animate() {
   crateManager.update(boat.position, time);
 
   // Wind boost visual
-  windEffect.update(time, boatController.boostAmount, boat);
+  windEffect.update(time, boatController.boostAmount, boat, camera);
 
   // Camera follow
   updateCamera(delta);
