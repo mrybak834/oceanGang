@@ -28,7 +28,7 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setAnimationLoop(animate);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.75;
+  renderer.toneMappingExposure = 0.5;
   document.body.appendChild(renderer.domElement);
 
   // Scene
@@ -44,11 +44,11 @@ function init() {
   );
   camera.position.set(0, 15, 35);
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0x667788, 0.8);
+  // Lightingd
+  const ambientLight = new THREE.AmbientLight(0x445566, 0.4);
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffeedd, 2.0);
+const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
   directionalLight.position.set(1, 3, 1);
   scene.add(directionalLight);
 

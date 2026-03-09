@@ -166,12 +166,99 @@ export function createBoat(scene) {
     color: 0x3d2b1a,
     roughness: 0.7,
   });
-  const sailMaterial = new THREE.MeshStandardMaterial({
-    color: 0xfdf5e6,
-    roughness: 0.85,
-    metalness: 0.0,
-    side: THREE.DoubleSide,
-  });
+  // --- Patchwork sail texture ---
+  function makePatchworkTexture(w, h, patchCols, patchRows) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    const patchW = w / patchCols;
+    const patchH = h / patchRows;
+
+    // Patch colors — aged canvas, linen, repaired cloth
+    const patchColors = [
+      '#f5edd5', '#e8dcc0', '#f0e4c8', '#ddd2b8',
+      '#ebe0c4', '#d8cab0', '#f2e8d0', '#e0d4bc',
+      '#c8bca4', '#eee2ca', '#d5c8ae', '#f8f0da',
+      '#cfc2a8', '#e5d8be', '#daceB4', '#f0e6cc',
+    ];
+
+    for (let r = 0; r < patchRows; r++) {
+      for (let c = 0; c < patchCols; c++) {
+        const color = patchColors[Math.floor(Math.random() * patchColors.length)];
+        ctx.fillStyle = color;
+        ctx.fillRect(c * patchW, r * patchH, patchW, patchH);
+
+        // Subtle grain noise per patch
+        ctx.fillStyle = `rgba(0,0,0,${0.02 + Math.random() * 0.03})`;
+        for (let n = 0; n < 20; n++) {
+          const nx = c * patchW + Math.random() * patchW;
+          const ny = r * patchH + Math.random() * patchH;
+          ctx.fillRect(nx, ny, 1 + Math.random() * 2, 1 + Math.random() * 2);
+        }
+      }
+    }
+
+    // Draw stitch lines between patches
+    ctx.strokeStyle = '#8b7355';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 4]); // dashed stitch pattern
+
+    // Horizontal stitches
+    for (let r = 1; r < patchRows; r++) {
+      const y = r * patchH;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+    // Vertical stitches
+    for (let c = 1; c < patchCols; c++) {
+      const x = c * patchW;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // Occasional repair patches (darker, overlaid)
+    for (let p = 0; p < 2; p++) {
+      const px = Math.random() * (w - 40) + 10;
+      const py = Math.random() * (h - 40) + 10;
+      const ps = 20 + Math.random() * 25;
+      ctx.fillStyle = `rgba(160,140,110,0.4)`;
+      ctx.fillRect(px, py, ps, ps * 0.7);
+      ctx.strokeStyle = '#7a6a50';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 3]);
+      ctx.strokeRect(px, py, ps, ps * 0.7);
+      ctx.setLineDash([]);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    return { texture, patchCols, patchRows };
+  }
+
+  const mainSailTex = makePatchworkTexture(512, 512, 4, 5);
+  const foreSailTex = makePatchworkTexture(384, 384, 3, 4);
+  const jibSailTex = makePatchworkTexture(320, 384, 3, 4);
+
+  function makeSailMaterial(texInfo) {
+    return new THREE.MeshStandardMaterial({
+      map: texInfo.texture,
+      roughness: 0.9,
+      metalness: 0.0,
+      side: THREE.DoubleSide,
+    });
+  }
+
+  const mainSailMat = makeSailMaterial(mainSailTex);
+  const foreSailMat = makeSailMaterial(foreSailTex);
+  const jibSailMat = makeSailMaterial(jibSailTex);
 
   // --- Hull (single continuous mesh) ---
   const hullGeo = buildHullGeometry();
@@ -316,7 +403,7 @@ export function createBoat(scene) {
 
   // --- Main Sail (subdivided for wind deformation) ---
   const mainSailGeo = new THREE.PlaneGeometry(3.5, 6.5, 10, 14);
-  const mainSail = new THREE.Mesh(mainSailGeo, sailMaterial);
+  const mainSail = new THREE.Mesh(mainSailGeo, mainSailMat);
   mainSail.position.set(0, 6.0, -0.5);
   mainSail.rotation.y = -Math.PI / 2;
   // Taper: make it triangular by pulling top-right vertices toward mast
@@ -336,12 +423,12 @@ export function createBoat(scene) {
   msPos.needsUpdate = true;
   mainSailGeo.computeVertexNormals();
   // Store base positions for animation
-  mainSailGeo.userData = { basePositions: new Float32Array(msPos.array) };
+  mainSailGeo.userData = { basePositions: new Float32Array(msPos.array), patchCols: mainSailTex.patchCols, patchRows: mainSailTex.patchRows };
   boat.add(mainSail);
 
   // --- Fore Sail (subdivided) ---
   const foreSailGeo = new THREE.PlaneGeometry(2.5, 4.5, 8, 10);
-  const foreSail = new THREE.Mesh(foreSailGeo, sailMaterial);
+  const foreSail = new THREE.Mesh(foreSailGeo, foreSailMat);
   foreSail.position.set(0, 4.0, -3.5);
   foreSail.rotation.y = -Math.PI / 2;
   const fsPos = foreSailGeo.attributes.position;
@@ -355,12 +442,12 @@ export function createBoat(scene) {
   }
   fsPos.needsUpdate = true;
   foreSailGeo.computeVertexNormals();
-  foreSailGeo.userData = { basePositions: new Float32Array(fsPos.array) };
+  foreSailGeo.userData = { basePositions: new Float32Array(fsPos.array), patchCols: foreSailTex.patchCols, patchRows: foreSailTex.patchRows };
   boat.add(foreSail);
 
   // --- Jib (triangular, subdivided) ---
   const jibGeo = new THREE.PlaneGeometry(2.2, 5.0, 7, 12);
-  const jib = new THREE.Mesh(jibGeo, sailMaterial);
+  const jib = new THREE.Mesh(jibGeo, jibSailMat);
   jib.position.set(0, 4.0, -5.5);
   jib.rotation.y = -Math.PI / 2;
   const jPos = jibGeo.attributes.position;
@@ -374,7 +461,7 @@ export function createBoat(scene) {
   }
   jPos.needsUpdate = true;
   jibGeo.computeVertexNormals();
-  jibGeo.userData = { basePositions: new Float32Array(jPos.array) };
+  jibGeo.userData = { basePositions: new Float32Array(jPos.array), patchCols: jibSailTex.patchCols, patchRows: jibSailTex.patchRows };
   boat.add(jib);
 
   // --- Boom ---
@@ -752,19 +839,35 @@ export function createBoatController() {
       const base = geo.userData.basePositions;
       const halfW = geo.parameters.width / 2;
       const halfH = geo.parameters.height / 2;
+      const pCols = geo.userData.patchCols || 4;
+      const pRows = geo.userData.patchRows || 5;
 
       for (let i = 0; i < pos.count; i++) {
         const bx = base[i * 3];
         const by = base[i * 3 + 1];
-        // Normalized position: nx = 0 at mast, 1 at far edge; ny = 0 at bottom, 1 at top
+        // Normalized 0-1
         const nx = (bx + halfW) / geo.parameters.width;
         const ny = (by + halfH) / geo.parameters.height;
-        // Billow: pushes outward (z in local sail space), strongest at center
+
+        // Which patch does this vertex belong to
+        const pc = Math.min(Math.floor(nx * pCols), pCols - 1);
+        const pr = Math.min(Math.floor(ny * pRows), pRows - 1);
+        // Unique phase offset per patch (deterministic from grid position)
+        const patchPhase = (pc * 7.3 + pr * 13.1) % (Math.PI * 2);
+        const patchFreq = 0.8 + ((pc * 3 + pr * 5) % 7) * 0.15;
+
+        // Overall billow shape
         const curve = Math.sin(nx * Math.PI) * Math.sin(ny * Math.PI);
-        // Add ripple waves traveling along the sail
-        const ripple = Math.sin(ny * 6 + time * 3) * 0.08 * nx;
-        const flutter = Math.sin(ny * 10 + nx * 4 + time * 8) * 0.03 * nx * windStrength;
-        pos.setZ(i, (curve * amplitude * billow + ripple + flutter));
+
+        // Per-patch independent flutter — each patch has its own timing
+        const patchFlutter = Math.sin(time * (2.5 + patchFreq) + patchPhase) * 0.12 * nx;
+        // Fast edge flutter (loose fabric flapping)
+        const edgeFlap = Math.sin(time * (7 + patchFreq * 2) + patchPhase + ny * 5) * 0.05 * nx * billow;
+        // Traveling wave ripple across the sail
+        const ripple = Math.sin(ny * 5 + nx * 3 + time * 3.5) * 0.06 * nx;
+
+        const z = curve * amplitude * billow + patchFlutter * billow + edgeFlap + ripple;
+        pos.setZ(i, z);
       }
       pos.needsUpdate = true;
       geo.computeVertexNormals();
