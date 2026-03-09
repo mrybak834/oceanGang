@@ -9,7 +9,7 @@ let water, boat, boatController, crateManager;
 const clock = new THREE.Clock();
 
 // Camera follow settings
-const cameraOffset = new THREE.Vector3(0, 45, 45);
+const cameraOffset = new THREE.Vector3(0, 60, 60);
 const cameraLookOffset = new THREE.Vector3(0, 0, 0);
 
 init();

@@ -62,5 +62,40 @@ export function createOcean(scene, renderer) {
 
   updateSun();
 
-  return { water, sky, sun, updateSun };
+  // Clouds
+  const clouds = new THREE.Group();
+  const cloudMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 1.0,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+  });
+
+  for (let i = 0; i < 25; i++) {
+    const cloud = new THREE.Group();
+    const puffCount = 3 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < puffCount; j++) {
+      const size = 40 + Math.random() * 60;
+      const puffGeo = new THREE.SphereGeometry(size, 8, 6);
+      const puff = new THREE.Mesh(puffGeo, cloudMaterial);
+      puff.position.set(
+        (Math.random() - 0.5) * size * 1.5,
+        (Math.random() - 0.3) * size * 0.4,
+        (Math.random() - 0.5) * size * 1.2
+      );
+      puff.scale.y = 0.4 + Math.random() * 0.2;
+      cloud.add(puff);
+    }
+    cloud.position.set(
+      (Math.random() - 0.5) * 6000,
+      200 + Math.random() * 150,
+      (Math.random() - 0.5) * 6000
+    );
+    clouds.add(cloud);
+  }
+  scene.add(clouds);
+
+  return { water, sky, sun, clouds, updateSun };
 }
