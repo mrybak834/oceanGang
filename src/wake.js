@@ -63,14 +63,17 @@ export function createWakeSystem(scene) {
     },
     vertexShader: /* glsl */`
       varying vec2 vUv;
+      varying vec2 vWorldXZ;
       void main() {
         vUv = uv;
+        vWorldXZ = vec2(position.x, position.z);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: /* glsl */`
       precision highp float;
       varying vec2 vUv;
+      varying vec2 vWorldXZ;
       uniform float uTime;
       uniform float uIntensity;
       uniform sampler2D uFoam;
@@ -82,22 +85,22 @@ export function createWakeSystem(scene) {
         // Distance fade
         float fade = pow(max(0.0, 1.0 - along), 0.9);
 
-        // Scrolling foam texture layers
-        vec2 uv1 = vec2(vUv.x * 3.0, along * 5.0 - uTime * 0.5);
-        vec2 uv2 = vec2(vUv.x * 2.0 + 0.3, along * 3.5 - uTime * 0.35);
+        // Foam texture anchored to world space — stays fixed in water
+        vec2 uv1 = vWorldXZ * 0.06;
+        vec2 uv2 = vWorldXZ * 0.04 + vec2(0.37, 0.71);
         float foam = texture2D(uFoam, uv1).r * 0.6 + texture2D(uFoam, uv2).r * 0.4;
 
         // Soft edges
         float edgeFade = smoothstep(1.0, 0.5, abs(across));
 
-        // Near-stern slightly more visible
+        // Near boat slightly more visible
         float nearBoat = smoothstep(0.1, 0.0, along);
 
         float alpha = foam * 0.18 * fade * edgeFade * uIntensity;
         alpha += nearBoat * uIntensity * 0.15;
         alpha = clamp(alpha, 0.0, 0.25);
 
-        // Blend with ocean color — light foam tint over blue water
+        // Blend with ocean color
         vec3 oceanBlue = vec3(0.35, 0.55, 0.7);
         vec3 foamWhite = vec3(0.75, 0.85, 0.92);
         vec3 color = mix(oceanBlue, foamWhite, foam * 0.3 + nearBoat * 0.2);
@@ -191,7 +194,8 @@ export function createWakeSystem(scene) {
 
       if (i < usedPoints) {
         const t = trail[i];
-        const v = usedPoints > 1 ? i / (usedPoints - 1) : 0;
+        const maxAge = trail[usedPoints - 1].age || 1;
+        const v = t.age / maxAge;
 
         // Left vertex
         posArr[pi + 0] = t.x - t.perpX * t.width;
