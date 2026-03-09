@@ -23,29 +23,28 @@ function buildHullGeometry() {
   // For each frame, generate points around the cross-section (half-circle bottom + straight sides)
   const segmentsPerFrame = 12;
   const vertices = [];
+  const uvs = [];
   const indices = [];
-  const normals = [];
+
+  const zMin = frames[0].z;
+  const zMax = frames[frames.length - 1].z;
 
   for (let fi = 0; fi < frames.length; fi++) {
     const f = frames[fi];
+    const u = (f.z - zMin) / (zMax - zMin); // 0..1 along hull length
     for (let si = 0; si <= segmentsPerFrame; si++) {
       const t = si / segmentsPerFrame; // 0 = port top, 0.5 = keel, 1 = starboard top
       let x, y;
       if (t <= 0.5) {
-        // Port side: top-left down to keel
-        const angle = Math.PI * (1 - t * 2); // PI to 0
-        x = -f.hw * Math.sin(angle);
-        y = f.dy - f.depth * (1 - Math.cos(angle)) * 0.5 - f.depth * (1 - Math.cos(angle)) * 0.5;
-        // Simpler: use cos/sin to sweep from port gunwale to keel
         x = -f.hw * Math.cos(t * Math.PI);
         y = f.dy - f.depth * Math.sin(t * Math.PI);
       } else {
-        // Starboard side: keel up to top-right
-        const angle = (t - 0.5) * 2; // 0 to 1
+        const angle = (t - 0.5) * 2;
         x = f.hw * Math.cos((1 - angle) * Math.PI);
         y = f.dy - f.depth * Math.sin((1 - angle) * Math.PI);
       }
       vertices.push(x, y, f.z);
+      uvs.push(u, t); // u = along hull, v = around cross-section
     }
   }
 
@@ -64,6 +63,7 @@ function buildHullGeometry() {
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
 
@@ -140,31 +140,122 @@ function buildGunwaleGeometry() {
 export function createBoat(scene) {
   const boat = new THREE.Group();
 
+  // --- Procedural wood color texture ---
+  function makeWoodTexture(baseR, baseG, baseB, opts = {}) {
+    const w = opts.width || 256;
+    const h = opts.height || 256;
+    const grainCount = opts.grainCount || 40;
+    const knotCount = opts.knots || 3;
+    const plankLines = opts.planks || 0;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    // Base fill
+    ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
+    ctx.fillRect(0, 0, w, h);
+
+    // Wood grain — strong, visible lines with good contrast
+    for (let i = 0; i < grainCount; i++) {
+      const y = Math.random() * h;
+      const dark = Math.random() > 0.5;
+      const shift = dark ? -(20 + Math.random() * 30) : (10 + Math.random() * 20);
+      const r = Math.max(0, Math.min(255, baseR + shift));
+      const g = Math.max(0, Math.min(255, baseG + shift * 0.7));
+      const b = Math.max(0, Math.min(255, baseB + shift * 0.5));
+      ctx.strokeStyle = `rgba(${r|0},${g|0},${b|0},${0.4 + Math.random() * 0.4})`;
+      ctx.lineWidth = 0.5 + Math.random() * 3;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= w; x += 6) {
+        ctx.lineTo(x, y + Math.sin(x * 0.02 + i * 0.8) * (1 + Math.random() * 3));
+      }
+      ctx.stroke();
+    }
+
+    // Knots
+    for (let i = 0; i < knotCount; i++) {
+      const kx = 20 + Math.random() * (w - 40);
+      const ky = 20 + Math.random() * (h - 40);
+      const kr = 5 + Math.random() * 10;
+      const dark = Math.max(0, baseR - 50);
+      const grad = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
+      grad.addColorStop(0, `rgba(${dark},${dark * 0.5 | 0},${dark * 0.2 | 0},0.9)`);
+      grad.addColorStop(0.6, `rgba(${dark + 15},${(dark + 10) * 0.6 | 0},${dark * 0.3 | 0},0.5)`);
+      grad.addColorStop(1, `rgba(${baseR},${baseG},${baseB},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(kx, ky, kr, kr * 0.6, Math.random() * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      for (let r = 2; r < kr; r += 2) {
+        ctx.strokeStyle = `rgba(${dark * 0.8 | 0},${dark * 0.4 | 0},${dark * 0.15 | 0},0.2)`;
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.ellipse(kx, ky, r, r * 0.6, Math.random() * 0.3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Plank dividers
+    if (plankLines > 0) {
+      const gap = h / plankLines;
+      ctx.setLineDash([]);
+      for (let i = 1; i < plankLines; i++) {
+        const py = i * gap;
+        // Dark seam
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+        // Highlight edge below
+        ctx.strokeStyle = `rgba(${Math.min(255, baseR + 25)},${Math.min(255, baseG + 20)},${Math.min(255, baseB + 15)},0.2)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, py + 2); ctx.lineTo(w, py + 2); ctx.stroke();
+      }
+    }
+
+    // Fine noise
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const noise = (Math.random() - 0.5) * 14;
+      d[i] = Math.max(0, Math.min(255, d[i] + noise));
+      d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + noise));
+      d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + noise));
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(opts.repeatX || 1, opts.repeatY || 1);
+    return tex;
+  }
+
   // --- Materials ---
   const hullMaterial = new THREE.MeshStandardMaterial({
-    color: 0x5c3317,
-    roughness: 0.75,
-    metalness: 0.05,
-    side: THREE.DoubleSide,
+    color: 0x6b3a1a,
+    map: makeWoodTexture(100, 60, 28, { grainCount: 55, knots: 4, planks: 10, repeatX: 2 }),
+    roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide,
   });
   const hullDarkMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2a1508,
-    roughness: 0.85,
-    metalness: 0.0,
-    side: THREE.DoubleSide,
+    color: 0x3a1a08,
+    map: makeWoodTexture(45, 25, 10, { grainCount: 40, knots: 2 }),
+    roughness: 0.92, metalness: 0.0, side: THREE.DoubleSide,
   });
   const deckMaterial = new THREE.MeshStandardMaterial({
-    color: 0xc8a46e,
-    roughness: 0.85,
-    metalness: 0.0,
+    color: 0xb08040,
+    map: makeWoodTexture(195, 160, 105, { grainCount: 65, knots: 4, planks: 12, repeatY: 2 }),
+    roughness: 0.95, metalness: 0.0,
   });
   const mastMaterial = new THREE.MeshStandardMaterial({
-    color: 0x4a3015,
-    roughness: 0.65,
+    color: 0x5a3215,
+    map: makeWoodTexture(80, 52, 24, { width: 128, height: 256, grainCount: 45, knots: 2, repeatY: 3 }),
+    roughness: 0.85, metalness: 0.0,
   });
   const railMaterial = new THREE.MeshStandardMaterial({
-    color: 0x3d2b1a,
-    roughness: 0.7,
+    color: 0x4a2a12,
+    map: makeWoodTexture(65, 45, 28, { width: 128, height: 128, grainCount: 30, knots: 1 }),
+    roughness: 0.88, metalness: 0.0,
   });
   // --- Patchwork sail texture ---
   function makePatchworkTexture(w, h, patchCols, patchRows) {
@@ -338,15 +429,19 @@ export function createBoat(scene) {
 
   // Step up to stern deck
   const stepGeo = new THREE.BoxGeometry(2.0, 0.3, 0.15);
-  const step = new THREE.Mesh(stepGeo, new THREE.MeshStandardMaterial({ color: 0x8b6b3e, roughness: 0.8 }));
+  const step = new THREE.Mesh(stepGeo, new THREE.MeshStandardMaterial({
+    color: 0x7a4a22,
+    map: makeWoodTexture(140, 108, 64, { width: 128, height: 64, grainCount: 20, knots: 1 }),
+    roughness: 0.9, metalness: 0.0,
+  }));
   step.position.set(0, 1.2, 1.65);
   boat.add(step);
 
   // Cabin
   const cabinMaterial = new THREE.MeshStandardMaterial({
-    color: 0x6b3e26,
-    roughness: 0.7,
-    metalness: 0.05,
+    color: 0x6b3820,
+    map: makeWoodTexture(110, 65, 40, { grainCount: 45, knots: 3, planks: 6 }),
+    roughness: 0.9, metalness: 0.0,
   });
   const cabinGeo = new THREE.BoxGeometry(1.8, 1.1, 2.0);
   const cabin = new THREE.Mesh(cabinGeo, cabinMaterial);
@@ -355,7 +450,11 @@ export function createBoat(scene) {
 
   // Cabin roof (slightly wider, angled)
   const roofGeo = new THREE.BoxGeometry(2.0, 0.1, 2.2);
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x8b5e3c, roughness: 0.6 });
+  const roofMat = new THREE.MeshStandardMaterial({
+    color: 0x7a4528,
+    map: makeWoodTexture(140, 95, 62, { width: 128, height: 128, grainCount: 35, knots: 2, planks: 4 }),
+    roughness: 0.9, metalness: 0.0,
+  });
   const roof = new THREE.Mesh(roofGeo, roofMat);
   roof.position.set(0, 2.55, 3.5);
   boat.add(roof);
