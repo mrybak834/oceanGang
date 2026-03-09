@@ -4,9 +4,10 @@ import { createBoat, createBoatController } from './boat.js';
 import { createCrateManager } from './crates.js';
 import { createIslands } from './islands.js';
 import { createWindEffect } from './windEffect.js';
+import { createWakeSystem } from './wake.js';
 
 let camera, scene, renderer;
-let water, boat, boatController, crateManager, windEffect;
+let water, boat, boatController, crateManager, windEffect, wakeSystem;
 
 const clock = new THREE.Clock();
 
@@ -88,6 +89,10 @@ const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
   // Islands
   createIslands(scene);
 
+  // Wake / spray
+  wakeSystem = createWakeSystem(scene);
+  wakeSystem.attachToBoat(boat);
+
   // Crates
   crateManager = createCrateManager(scene);
   crateManager.init(boat.position);
@@ -143,6 +148,9 @@ function animate() {
 
   // Update crates
   crateManager.update(boat.position, time);
+
+  // Wake / spray
+  wakeSystem.update(delta, time, boat, boatController);
 
   // Wind boost visual
   windEffect.update(time, boatController.boostAmount, boat, camera);
