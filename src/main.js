@@ -18,6 +18,25 @@ let cameraPitch = 0.55;   // vertical angle (radians) — 0 = level, PI/2 = top-
 const pitchMin = 0.1;
 const pitchMax = 1.4;
 let isMouseDragging = false;
+let cameraFollowHeading = true; // true = chase cam, false = free orbit
+
+// Floating camera mode toast
+const cameraToast = document.createElement('div');
+Object.assign(cameraToast.style, {
+  position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)',
+  padding: '8px 20px', borderRadius: '16px',
+  background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: 'sans-serif',
+  fontSize: '14px', pointerEvents: 'none', opacity: '0',
+  transition: 'opacity 0.3s ease', zIndex: '100', whiteSpace: 'nowrap',
+});
+document.body.appendChild(cameraToast);
+let toastTimeout;
+function showCameraToast(text) {
+  cameraToast.textContent = text;
+  cameraToast.style.opacity = '1';
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => { cameraToast.style.opacity = '0'; }, 1500);
+}
 
 init();
 
@@ -85,6 +104,14 @@ const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
   // Prevent context menu on right-click so right-drag works
   window.addEventListener('contextmenu', (e) => e.preventDefault());
 
+  // Toggle camera mode with C
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyC' && !e.repeat) {
+      cameraFollowHeading = !cameraFollowHeading;
+      showCameraToast(cameraFollowHeading ? 'Chase Cam' : 'Free Orbit');
+    }
+  });
+
   // Resize
   window.addEventListener('resize', onWindowResize);
 }
@@ -115,12 +142,13 @@ function animate() {
 }
 
 function updateCamera(delta) {
-  // Spherical offset from yaw/pitch/zoom
+  // Spherical offset relative to boat heading
   const dist = baseCameraDistance * zoomLevel;
+  const angle = cameraFollowHeading ? cameraYaw + boat.rotation.y : cameraYaw;
   const offset = new THREE.Vector3(
-    dist * Math.sin(cameraYaw) * Math.cos(cameraPitch),
+    dist * Math.sin(angle) * Math.cos(cameraPitch),
     dist * Math.sin(cameraPitch),
-    dist * Math.cos(cameraYaw) * Math.cos(cameraPitch)
+    dist * Math.cos(angle) * Math.cos(cameraPitch)
   );
 
   const desiredPosition = boat.position.clone().add(offset);
