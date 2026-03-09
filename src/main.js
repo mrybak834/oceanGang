@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createOcean } from './ocean.js';
 import { createBoat, createBoatController } from './boat.js';
 import { createCrateManager } from './crates.js';
+import { createIslands } from './islands.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager;
@@ -78,6 +79,9 @@ const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
   // Boat
   boat = createBoat(scene);
   boatController = createBoatController();
+
+  // Islands
+  createIslands(scene);
 
   // Crates
   crateManager = createCrateManager(scene);
