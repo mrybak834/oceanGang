@@ -618,6 +618,40 @@ export function createBoat(scene) {
   sternCross.position.set(0, 1.85, 4.5);
   boat.add(sternCross);
 
+  // --- Helm wheel ---
+  const wheelGroup = new THREE.Group();
+  const wheelRingGeo = new THREE.TorusGeometry(0.28, 0.03, 8, 18);
+  const wheelHubGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.12, 8);
+  const wheelRing = new THREE.Mesh(wheelRingGeo, railMaterial);
+  const wheelHub = new THREE.Mesh(wheelHubGeo, railMaterial);
+  wheelHub.rotation.x = Math.PI / 2;
+  wheelGroup.add(wheelRing);
+  wheelGroup.add(wheelHub);
+  for (let i = 0; i < 8; i++) {
+    const spokeGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6);
+    const spoke = new THREE.Mesh(spokeGeo, railMaterial);
+    spoke.rotation.z = Math.PI / 2;
+    spoke.rotation.y = (i / 8) * Math.PI * 2;
+    const angle = (i / 8) * Math.PI * 2;
+    spoke.position.set(Math.cos(angle) * 0.18, Math.sin(angle) * 0.18, 0);
+    wheelGroup.add(spoke);
+
+    const handleGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.14, 6);
+    const handle = new THREE.Mesh(handleGeo, mastMaterial);
+    handle.rotation.z = Math.PI / 2;
+    handle.rotation.y = spoke.rotation.y;
+    handle.position.set(Math.cos(angle) * 0.31, Math.sin(angle) * 0.31, 0);
+    wheelGroup.add(handle);
+  }
+  const wheelStandGeo = new THREE.BoxGeometry(0.12, 0.7, 0.12);
+  const wheelStand = new THREE.Mesh(wheelStandGeo, mastMaterial);
+  wheelStand.position.set(0, -0.35, 0);
+  wheelGroup.add(wheelStand);
+  wheelGroup.position.set(0, 1.7, 2.55);
+  wheelGroup.rotation.x = 0.32;
+  wheelGroup.rotation.z = Math.PI / 2;
+  boat.add(wheelGroup);
+
   // --- Bowsprit ---
   const bowspritGeo = new THREE.CylinderGeometry(0.06, 0.08, 3.5, 6);
   const bowsprit = new THREE.Mesh(bowspritGeo, mastMaterial);
@@ -686,10 +720,15 @@ export function createBoat(scene) {
       skinColor = 0xd4a574,
       shirtColor = 0xe8e0d0,
       vestColor = null,
+      coatColor = null,
+      sashColor = null,
       trouserColor = 0x2b3d5e,
       hatType = 'bandana',
       hatColor = 0xaa2222,
+      plumeColor = null,
       hasBeard = false,
+      beardColor = 0x3a2a1a,
+      armPose = 'neutral',
     } = opts;
 
     const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.75 });
@@ -728,6 +767,22 @@ export function createBoat(scene) {
       person.add(vest);
     }
 
+    if (coatColor) {
+      const coatMat = new THREE.MeshStandardMaterial({ color: coatColor, roughness: 0.82 });
+      const coatGeo = new THREE.CylinderGeometry(0.14, 0.18, 0.4, 8, 1, true);
+      const coat = new THREE.Mesh(coatGeo, coatMat);
+      coat.position.y = 0.58;
+      person.add(coat);
+
+      for (const side of [-1, 1]) {
+        const tailGeo = new THREE.BoxGeometry(0.09, 0.22, 0.18);
+        const tail = new THREE.Mesh(tailGeo, coatMat);
+        tail.position.set(side * 0.07, 0.38, -0.08);
+        tail.rotation.x = 0.2;
+        person.add(tail);
+      }
+    }
+
     // Belt / sash
     const beltMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.7 });
     const beltGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.05, 8);
@@ -735,17 +790,36 @@ export function createBoat(scene) {
     belt.position.y = 0.45;
     person.add(belt);
 
+    if (sashColor) {
+      const sashMat = new THREE.MeshStandardMaterial({ color: sashColor, roughness: 0.65 });
+      const sashGeo = new THREE.TorusGeometry(0.135, 0.02, 6, 14);
+      const sash = new THREE.Mesh(sashGeo, sashMat);
+      sash.position.y = 0.47;
+      sash.rotation.x = Math.PI / 2;
+      person.add(sash);
+    }
+
     // Arms
     for (const side of [-1, 1]) {
       const armGeo = new THREE.CylinderGeometry(0.03, 0.035, 0.32, 5);
       const arm = new THREE.Mesh(armGeo, shirtMat);
       arm.position.set(side * 0.15, 0.55, 0);
-      arm.rotation.z = side * 0.15;
+      if (armPose === 'helm') {
+        arm.rotation.z = side * 1.1;
+        arm.rotation.x = -0.9;
+        arm.position.z = 0.1;
+      } else {
+        arm.rotation.z = side * 0.15;
+      }
       person.add(arm);
       // Hands
       const handGeo = new THREE.SphereGeometry(0.035, 5, 5);
       const hand = new THREE.Mesh(handGeo, skinMat);
-      hand.position.set(side * 0.17, 0.38, 0);
+      if (armPose === 'helm') {
+        hand.position.set(side * 0.26, 0.5, 0.18);
+      } else {
+        hand.position.set(side * 0.17, 0.38, 0);
+      }
       person.add(hand);
     }
 
@@ -757,7 +831,7 @@ export function createBoat(scene) {
 
     // Beard
     if (hasBeard) {
-      const beardMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
+      const beardMat = new THREE.MeshStandardMaterial({ color: beardColor, roughness: 0.9 });
       const beardGeo = new THREE.SphereGeometry(0.07, 6, 4, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.5);
       const beard = new THREE.Mesh(beardGeo, beardMat);
       beard.position.set(0, 0.82, 0.04);
@@ -783,6 +857,14 @@ export function createBoat(scene) {
       const crown = new THREE.Mesh(crownGeo, hatMat);
       crown.position.y = 1.02;
       person.add(crown);
+      if (plumeColor) {
+        const plumeMat = new THREE.MeshStandardMaterial({ color: plumeColor, roughness: 0.75 });
+        const plumeGeo = new THREE.ConeGeometry(0.03, 0.22, 6);
+        const plume = new THREE.Mesh(plumeGeo, plumeMat);
+        plume.position.set(0.08, 1.14, 0);
+        plume.rotation.z = -0.45;
+        person.add(plume);
+      }
     } else if (hatType === 'cap') {
       const capGeo = new THREE.SphereGeometry(0.11, 6, 4, 0, Math.PI * 2, 0, Math.PI * 0.45);
       const cap = new THREE.Mesh(capGeo, hatMat);
@@ -800,10 +882,20 @@ export function createBoat(scene) {
     return person;
   }
 
-  // Captain at the helm (tricorn hat, dark vest, beard)
-  boat.add(createSailor(0, 3.8, 0, {
-    hatType: 'tricorn', hatColor: 0x1a1a2e, vestColor: 0x2a1a0a,
-    shirtColor: 0xe8dcc8, trouserColor: 0x1a1a2e, hasBeard: true,
+  // True Osmodius at the helm
+  boat.add(createSailor(0, 3.05, 0, {
+    hatType: 'tricorn',
+    hatColor: 0x101820,
+    plumeColor: 0x0f8b8d,
+    coatColor: 0x12343b,
+    vestColor: 0x3a2414,
+    sashColor: 0xc89b3c,
+    shirtColor: 0xf1e2c4,
+    trouserColor: 0x221b2f,
+    skinColor: 0xc99661,
+    hasBeard: true,
+    beardColor: 0x1d1a18,
+    armPose: 'helm',
   }));
   // First mate lookout at bow (bandana, weathered)
   boat.add(createSailor(0, -4.5, Math.PI, {

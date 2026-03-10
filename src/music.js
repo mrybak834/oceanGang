@@ -512,6 +512,8 @@ export function initMusicPanel(shipAudio) {
   let musicVolume = 1.0;
   let isPlaying = false;
   let isLoading = false;
+  let suppressEditorSync = false;
+  let loadSceneRequestId = 0;
   const sceneDrafts = Object.fromEntries(Object.entries(SCENES));
 
   const sceneNames = Object.keys(SCENES);
@@ -549,19 +551,19 @@ export function initMusicPanel(shipAudio) {
     }));
   }
 
-  function persistEditorDraft() {
-    if (embeddedRepl?.editor && currentScene) {
-      sceneDrafts[currentScene] = embeddedRepl.editor.code;
+  function persistEditorDraft(sceneName = currentScene) {
+    if (embeddedRepl?.editor && sceneName) {
+      sceneDrafts[sceneName] = embeddedRepl.editor.code;
     }
   }
 
-  function syncEditorState(code, playing) {
-    if (!currentScene) return;
-    sceneDrafts[currentScene] = code;
+  function syncEditorState(sceneName, code, playing) {
+    if (!sceneName) return;
+    sceneDrafts[sceneName] = code;
     isPlaying = playing;
     isLoading = false;
-    emitMusicSceneSync(currentScene, code, { source: 'repl', playing });
-    emitPlaybackState(currentScene, playing, 'repl');
+    emitMusicSceneSync(sceneName, code, { source: 'repl', playing });
+    emitPlaybackState(sceneName, playing, 'repl');
     updateCardStates();
   }
 
@@ -572,20 +574,21 @@ export function initMusicPanel(shipAudio) {
     const originalEvaluate = editor.evaluate.bind(editor);
     editor.evaluate = async (autostart = true) => {
       const code = editor.code;
-      currentScene = currentScene || sceneSelect.value;
-      sceneSelect.value = currentScene;
+      const sceneName = currentScene || sceneSelect.value;
+      currentScene = sceneName;
+      sceneSelect.value = sceneName;
       isLoading = true;
       updateCardStates();
       try {
         const result = await originalEvaluate(autostart);
-        syncEditorState(code, autostart);
+        syncEditorState(sceneName, code, autostart);
         return result;
       } catch (err) {
-        sceneDrafts[currentScene] = code;
+        sceneDrafts[sceneName] = code;
         isPlaying = false;
         isLoading = false;
-        emitMusicSceneSync(currentScene, code, { source: 'repl-error', playing: false });
-        emitPlaybackState(currentScene, false, 'repl-error');
+        emitMusicSceneSync(sceneName, code, { source: 'repl-error', playing: false });
+        emitPlaybackState(sceneName, false, 'repl-error');
         updateCardStates();
         throw err;
       }
@@ -593,8 +596,11 @@ export function initMusicPanel(shipAudio) {
 
     const originalStop = editor.stop.bind(editor);
     editor.stop = async () => {
+      const sceneName = currentScene;
       const result = await originalStop();
-      syncEditorState(editor.code, false);
+      if (!suppressEditorSync) {
+        syncEditorState(sceneName, editor.code, false);
+      }
       return result;
     };
 
@@ -701,7 +707,6 @@ export function initMusicPanel(shipAudio) {
       return;
     }
 
-    currentScene = name;
     sceneSelect.value = name;
     await loadScene(name);
     isLoading = true;
@@ -729,12 +734,21 @@ export function initMusicPanel(shipAudio) {
 
   // ── Load scene into embedded REPL ──
   async function loadScene(name) {
-    persistEditorDraft();
+    const requestId = ++loadSceneRequestId;
+    const previousScene = currentScene;
+    persistEditorDraft(previousScene);
+    suppressEditorSync = true;
+    await stopEmbeddedRepl();
+    suppressEditorSync = false;
+    if (requestId !== loadSceneRequestId) return;
     currentScene = name;
     sceneSelect.value = name;
-    await stopEmbeddedRepl();
     const repl = await ensureEmbeddedRepl();
+    if (requestId !== loadSceneRequestId) return;
     repl.setAttribute('code', sceneDrafts[name] || SCENES[name]);
+    isPlaying = false;
+    isLoading = false;
+    updateCardStates();
   }
 
   // ── Scene selector ──
@@ -778,15 +792,14 @@ export function initMusicPanel(shipAudio) {
 
   closeBtn.addEventListener('click', hide);
 
-  // ── Auto-play Treasure Map on first forward press ──
+  // ── Auto-play current scene on first forward press ──
   let autoPlayed = false;
   window.addEventListener('keydown', function onFirstForward(e) {
     if (autoPlayed) return;
     if (e.code === 'KeyW' || e.code === 'ArrowUp') {
       autoPlayed = true;
       window.removeEventListener('keydown', onFirstForward);
-      // Play via strudel engine
-      toggleScene('Treasure Map');
+      toggleScene(currentScene || sceneSelect.value || 'Treasure Map');
     }
   });
 

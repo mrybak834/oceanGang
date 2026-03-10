@@ -19,7 +19,26 @@ const LEVELS = [
   { cost: 12, rate: 6,   label: 'Level 3' },
 ];
 
-export function createTradingSystem(scene, islandData, crateManager) {
+function hashCoords(x, z) {
+  const a = Math.round(x * 10);
+  const b = Math.round(z * 10);
+  return Math.abs(((a * 73856093) ^ (b * 19349663)) >>> 0);
+}
+
+function canAfford(materials, cost) {
+  return Object.entries(cost).every(([name, amount]) => (materials[name] || 0) >= amount);
+}
+
+function formatCost(cost) {
+  const order = ['Wood', 'Stone', 'Iron', 'Gold'];
+  return order
+    .filter((name) => cost[name] > 0)
+    .map((name) => `${Math.floor(cost[name])}${name[0]}`)
+    .join(' ');
+}
+
+export function createTradingSystem(scene, islandData, crateManager, instrumentRegistry) {
+  const sceneNames = instrumentRegistry.getSceneNames();
   // ── Per-island state ──
   const islands = islandData.map((d, i) => ({
     x: d.x,
@@ -27,6 +46,7 @@ export function createTradingSystem(scene, islandData, crateManager) {
     r: d.r,
     barrierR: d.r + BARRIER_BUFFER,
     type: ISLAND_TYPES[i % ISLAND_TYPES.length],
+    sceneName: sceneNames[hashCoords(d.x, d.z) % sceneNames.length],
     level: 0,
     stored: 0, // accumulated materials
   }));
@@ -64,12 +84,22 @@ export function createTradingSystem(scene, islandData, crateManager) {
         <span class="trade-island-name"></span>
         <button class="trade-close">&times;</button>
       </div>
+      <div class="trade-tabs">
+        <button class="trade-tab active" data-tab="industry">Industry</button>
+        <button class="trade-tab" data-tab="instruments">Instruments</button>
+      </div>
+      <div class="trade-panel trade-panel-industry">
       <div class="trade-type"></div>
       <div class="trade-level"></div>
       <div class="trade-production"></div>
       <div class="trade-action-row">
         <button class="trade-invest-btn">Invest</button>
         <span class="trade-cost"></span>
+      </div>
+      </div>
+      <div class="trade-panel trade-panel-instruments trade-panel-hidden">
+        <div class="trade-scene-name"></div>
+        <div class="trade-instrument-list"></div>
       </div>
       <div class="trade-inventory"></div>
     </div>
@@ -84,6 +114,11 @@ export function createTradingSystem(scene, islandData, crateManager) {
   const elCost = overlay.querySelector('.trade-cost');
   const elInv = overlay.querySelector('.trade-inventory');
   const elClose = overlay.querySelector('.trade-close');
+  const elScene = overlay.querySelector('.trade-scene-name');
+  const elInstrumentList = overlay.querySelector('.trade-instrument-list');
+  const tabButtons = [...overlay.querySelectorAll('.trade-tab')];
+  const panelIndustry = overlay.querySelector('.trade-panel-industry');
+  const panelInstruments = overlay.querySelector('.trade-panel-instruments');
 
   // ── Resource Tracker HUD ──
   const tracker = document.createElement('div');
@@ -103,6 +138,7 @@ export function createTradingSystem(scene, islandData, crateManager) {
 
   let menuOpen = false;
   let activeIsland = null;
+  let activeTab = 'industry';
 
   // ── Block game input when menu is open ──
   overlay.addEventListener('keydown', e => e.stopPropagation());
@@ -110,10 +146,30 @@ export function createTradingSystem(scene, islandData, crateManager) {
   overlay.addEventListener('mousedown', e => e.stopPropagation());
   overlay.addEventListener('wheel', e => e.stopPropagation());
 
+  function setActiveTab(tabName) {
+    activeTab = tabName;
+    tabButtons.forEach((button) => {
+      button.classList.toggle('active', button.dataset.tab === tabName);
+    });
+    panelIndustry.classList.toggle('trade-panel-hidden', tabName !== 'industry');
+    panelInstruments.classList.toggle('trade-panel-hidden', tabName !== 'instruments');
+  }
+
+  tabButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      setActiveTab(button.dataset.tab);
+    });
+  });
+
+  instrumentRegistry.subscribe(() => {
+    if (menuOpen) refreshMenu();
+  });
+
   function openMenu(isl) {
     activeIsland = isl;
     menuOpen = true;
     overlay.classList.remove('trade-hidden');
+    setActiveTab(activeTab);
     refreshMenu();
   }
 
@@ -144,6 +200,7 @@ export function createTradingSystem(scene, islandData, crateManager) {
     if (!isl) return;
     const lvl = LEVELS[isl.level];
     const nextLvl = isl.level + 1 < LEVELS.length ? LEVELS[isl.level + 1] : null;
+    const sceneInstruments = instrumentRegistry.getScene(isl.sceneName);
 
     elName.textContent = isl.type.name;
     elName.style.color = isl.type.color;
@@ -168,6 +225,43 @@ export function createTradingSystem(scene, islandData, crateManager) {
     elInv.innerHTML = Object.entries(materials)
       .map(([k, v]) => `<span class="mat-item"><b>${k}</b> ${Math.floor(v)}</span>`)
       .join('');
+
+    elScene.textContent = `Scene: ${isl.sceneName}`;
+    elInstrumentList.innerHTML = sceneInstruments.map((inst) => {
+      const unlocked = instrumentRegistry.isUnlocked(isl.sceneName, inst.varName);
+      const costLabel = unlocked ? 'Owned' : (Object.keys(inst.cost).length ? formatCost(inst.cost) : 'Free');
+      const disabled = unlocked || !canAfford(materials, inst.cost) || Object.keys(inst.cost).length === 0;
+      const affordClass = unlocked || canAfford(materials, inst.cost) ? '' : ' afford-blocked';
+      return `
+        <div class="trade-instrument-row${affordClass}">
+          <div class="trade-instrument-copy">
+            <div class="trade-instrument-name">${unlocked ? '✓' : '♪'} ${inst.displayName}</div>
+            <div class="trade-instrument-meta">${inst.synthType || 'pattern'} · ${costLabel}</div>
+          </div>
+          <button
+            class="trade-buy-btn"
+            data-scene="${isl.sceneName}"
+            data-var="${inst.varName}"
+            ${disabled ? 'disabled' : ''}
+          >${unlocked ? 'Owned' : 'Buy'}</button>
+        </div>
+      `;
+    }).join('');
+
+    elInstrumentList.querySelectorAll('.trade-buy-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        const sceneName = button.dataset.scene;
+        const varName = button.dataset.var;
+        const inst = instrumentRegistry.getScene(sceneName).find((item) => item.varName === varName);
+        if (!inst || instrumentRegistry.isUnlocked(sceneName, varName)) return;
+        if (!canAfford(materials, inst.cost)) return;
+        for (const [name, amount] of Object.entries(inst.cost)) {
+          materials[name] -= amount;
+        }
+        instrumentRegistry.unlock(sceneName, varName);
+        refreshMenu();
+      });
+    });
   }
 
   // Cache DOM refs once (avoid querySelector every frame)

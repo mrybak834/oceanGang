@@ -5,17 +5,20 @@ import { createCrateManager } from './crates.js';
 import { createIslands } from './islands.js';
 import { createWindEffect } from './windEffect.js';
 import { createWakeSystem } from './wake.js';
-import { initMusicPanel } from './music.js';
+import { initMusicPanel, MUSIC_SCENE_SYNC_EVENT, SCENES } from './music.js';
 import { createShipAudio } from './shipAudio.js';
 import { initSkySettings } from './skySettings.js';
 import { createTradingSystem } from './trading.js';
 import { createPerfTracker } from './perfTracker.js';
 import { createTitleScreen } from './titleScreen.js';
+import { createInstrumentRegistry } from './instruments.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
-let shipAudio, ocean, tradingSystem, perfTracker;
+let shipAudio, ocean, tradingSystem, perfTracker, instrumentRegistry;
 let islandGroups = [], islandPositions = [];
+let wasJumping = false;
+let wasSplashing = false;
 const ISLAND_VISIBLE_DIST = 3000;
 const ISLAND_HIDE_DIST = 3200;
 
@@ -143,12 +146,19 @@ function init() {
 
   // Ship water audio (Web Audio synthesis tied to boat speed)
   shipAudio = createShipAudio();
+  instrumentRegistry = createInstrumentRegistry(SCENES);
+  document.addEventListener(MUSIC_SCENE_SYNC_EVENT, (event) => {
+    const { sceneName, code } = event.detail || {};
+    if (sceneName && typeof code === 'string') {
+      instrumentRegistry.setSceneCode(sceneName, code);
+    }
+  });
 
   // Music panel (Strudel) — needs shipAudio for SFX volume slider
   initMusicPanel(shipAudio);
 
   // Trading system (island barriers + trading menu)
-  tradingSystem = createTradingSystem(scene, islandsResult.islandData, crateManager);
+  tradingSystem = createTradingSystem(scene, islandsResult.islandData, crateManager, instrumentRegistry);
 
   // Sky/ocean settings popup (G key)
   initSkySettings(ocean, renderer);
@@ -217,6 +227,15 @@ function animate() {
 
   // Ship water audio
   shipAudio.update(boatController.velocity.forward, boatController.boostAmount);
+  if (boatController.isJumping && !wasJumping) {
+    shipAudio.playJump();
+  }
+  if (boatController.splashActive && !wasSplashing) {
+    const speedImpact = Math.min(Math.abs(boatController.velocity.forward) / 45, 1);
+    shipAudio.playSplash(0.8 + speedImpact * 0.4);
+  }
+  wasJumping = boatController.isJumping;
+  wasSplashing = boatController.splashActive;
 
   // Camera follow
   perfTracker.markStart('camera');

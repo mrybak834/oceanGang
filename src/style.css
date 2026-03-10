@@ -195,7 +195,7 @@ canvas {
   bottom: 20px;
   right: 20px;
   width: 620px;
-  height: 460px;
+  height: 92vh;
   min-width: 360px;
   min-height: 260px;
   z-index: 200;
@@ -465,6 +465,7 @@ canvas {
 
 .music-repl-root .cm-editor {
   height: 100%;
+  font-size: 13px;
 }
 
 .music-repl-root .cm-scroller {
@@ -476,7 +477,7 @@ canvas {
 }
 
 .music-preset-grid {
-  flex: 0 0 170px;
+  flex: 0 0 140px;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(3, 8, 20, 0.35);
@@ -623,6 +624,32 @@ canvas {
   margin-bottom: 12px;
 }
 
+.trade-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.trade-tab {
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.7);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.trade-tab.active {
+  background: rgba(91,155,213,0.2);
+  color: #fff;
+  border-color: rgba(91,155,213,0.4);
+}
+
+.trade-panel-hidden {
+  display: none;
+}
+
 .trade-island-name {
   font-size: 20px;
   font-weight: 700;
@@ -689,6 +716,68 @@ canvas {
 .trade-cost {
   font-size: 12px;
   color: rgba(255,255,255,0.45);
+}
+
+.trade-scene-name {
+  font-size: 13px;
+  color: rgba(255,255,255,0.65);
+  margin-bottom: 12px;
+}
+
+.trade-instrument-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.trade-instrument-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+}
+
+.trade-instrument-row.afford-blocked {
+  opacity: 0.6;
+}
+
+.trade-instrument-copy {
+  min-width: 0;
+}
+
+.trade-instrument-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.88);
+}
+
+.trade-instrument-meta {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 2px;
+}
+
+.trade-buy-btn {
+  border: none;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #2f8f67, #21684a);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.trade-buy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .trade-inventory {

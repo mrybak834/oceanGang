@@ -245,6 +245,17 @@ export function createShipAudio() {
     initialized = true;
   }
 
+  function ensureReady() {
+    if (!initialized) {
+      if (!userHasInteracted) return false;
+      init();
+    }
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    return true;
+  }
+
   let waterNoiseBuf = null;
 
   function startWaterLaps() {
@@ -342,14 +353,130 @@ export function createShipAudio() {
     hissSrc.stop(stopTime);
   }
 
+  function playJump() {
+    if (!ensureReady()) return;
+
+    const now = ctx.currentTime;
+    const duration = 0.22;
+
+    const whooshSrc = ctx.createBufferSource();
+    whooshSrc.buffer = waterNoiseBuf;
+    whooshSrc.playbackRate.setValueAtTime(1.15, now);
+    whooshSrc.playbackRate.exponentialRampToValueAtTime(0.72, now + duration);
+
+    const whooshHPF = ctx.createBiquadFilter();
+    whooshHPF.type = 'highpass';
+    whooshHPF.frequency.setValueAtTime(450, now);
+    whooshHPF.frequency.exponentialRampToValueAtTime(1800, now + duration * 0.7);
+
+    const whooshLPF = ctx.createBiquadFilter();
+    whooshLPF.type = 'lowpass';
+    whooshLPF.frequency.setValueAtTime(4200, now);
+    whooshLPF.frequency.exponentialRampToValueAtTime(1400, now + duration);
+
+    const whooshGain = ctx.createGain();
+    whooshGain.gain.setValueAtTime(0.0001, now);
+    whooshGain.gain.exponentialRampToValueAtTime(0.05, now + 0.03);
+    whooshGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    const chirpOsc = ctx.createOscillator();
+    chirpOsc.type = 'triangle';
+    chirpOsc.frequency.setValueAtTime(180, now);
+    chirpOsc.frequency.exponentialRampToValueAtTime(320, now + 0.06);
+    chirpOsc.frequency.exponentialRampToValueAtTime(110, now + duration);
+
+    const chirpGain = ctx.createGain();
+    chirpGain.gain.setValueAtTime(0.0001, now);
+    chirpGain.gain.exponentialRampToValueAtTime(0.018, now + 0.02);
+    chirpGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    whooshSrc.connect(whooshHPF);
+    whooshHPF.connect(whooshLPF);
+    whooshLPF.connect(whooshGain);
+    whooshGain.connect(masterGain);
+
+    chirpOsc.connect(chirpGain);
+    chirpGain.connect(masterGain);
+
+    const stopTime = now + duration + 0.05;
+    whooshSrc.start(now);
+    whooshSrc.stop(stopTime);
+    chirpOsc.start(now);
+    chirpOsc.stop(stopTime);
+  }
+
+  function playSplash(intensity = 1) {
+    if (!ensureReady()) return;
+
+    const clamped = Math.max(0.35, Math.min(intensity, 1.4));
+    const now = ctx.currentTime;
+    const duration = 0.45 + clamped * 0.18;
+
+    const bodySrc = ctx.createBufferSource();
+    bodySrc.buffer = waterNoiseBuf;
+    bodySrc.playbackRate.setValueAtTime(0.65 + Math.random() * 0.1, now);
+
+    const bodyBPF = ctx.createBiquadFilter();
+    bodyBPF.type = 'bandpass';
+    bodyBPF.frequency.setValueAtTime(500 + clamped * 220, now);
+    bodyBPF.Q.value = 0.9;
+
+    const bodyGain = ctx.createGain();
+    bodyGain.gain.setValueAtTime(0.0001, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.08 * clamped, now + 0.03);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    const spraySrc = ctx.createBufferSource();
+    spraySrc.buffer = waterNoiseBuf;
+    spraySrc.playbackRate.setValueAtTime(1.2 + Math.random() * 0.2, now);
+
+    const sprayHPF = ctx.createBiquadFilter();
+    sprayHPF.type = 'highpass';
+    sprayHPF.frequency.setValueAtTime(1400, now);
+
+    const sprayLPF = ctx.createBiquadFilter();
+    sprayLPF.type = 'lowpass';
+    sprayLPF.frequency.setValueAtTime(5200, now);
+    sprayLPF.frequency.exponentialRampToValueAtTime(1800, now + duration);
+
+    const sprayGain = ctx.createGain();
+    sprayGain.gain.setValueAtTime(0.0001, now);
+    sprayGain.gain.exponentialRampToValueAtTime(0.05 * clamped, now + 0.02);
+    sprayGain.gain.exponentialRampToValueAtTime(0.0001, now + duration * 0.85);
+
+    const thumpOsc = ctx.createOscillator();
+    thumpOsc.type = 'sine';
+    thumpOsc.frequency.setValueAtTime(95 + clamped * 15, now);
+    thumpOsc.frequency.exponentialRampToValueAtTime(42, now + duration * 0.45);
+
+    const thumpGain = ctx.createGain();
+    thumpGain.gain.setValueAtTime(0.0001, now);
+    thumpGain.gain.exponentialRampToValueAtTime(0.03 * clamped, now + 0.015);
+    thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + duration * 0.35);
+
+    bodySrc.connect(bodyBPF);
+    bodyBPF.connect(bodyGain);
+    bodyGain.connect(masterGain);
+
+    spraySrc.connect(sprayHPF);
+    sprayHPF.connect(sprayLPF);
+    sprayLPF.connect(sprayGain);
+    sprayGain.connect(masterGain);
+
+    thumpOsc.connect(thumpGain);
+    thumpGain.connect(masterGain);
+
+    const stopTime = now + duration + 0.05;
+    bodySrc.start(now);
+    bodySrc.stop(stopTime);
+    spraySrc.start(now);
+    spraySrc.stop(stopTime);
+    thumpOsc.start(now);
+    thumpOsc.stop(stopTime);
+  }
+
   function update(speed, boost) {
-    if (!initialized) {
-      if (!userHasInteracted) return;
-      init();
-    }
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-    }
+    if (!ensureReady()) return;
 
     const absSpeed = Math.abs(speed);
     const t = Math.min(absSpeed / 40, 1); // 0–1 normalized speed
@@ -379,5 +506,5 @@ export function createShipAudio() {
     }
   }
 
-  return { update, setVolume };
+  return { update, setVolume, playJump, playSplash };
 }
