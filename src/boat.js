@@ -1141,5 +1141,7 @@ export function createBoatController() {
     update, keys,
     get velocity() { return { forward: speed, turn: yawRate }; },
     get boostAmount() { return boostAmount; },
+    get isJumping() { return isJumping; },
+    get splashActive() { return splashActive; },
   };
 }

@@ -178,8 +178,9 @@ function animate() {
 
   // Update crates
   perfTracker.markStart('crates');
-  crateManager.update(boat.position, time);
+  const crateCollected = crateManager.update(boat.position, time);
   perfTracker.markEnd('crates');
+  if (crateCollected) perfTracker.logEvent('crate_collected', { score: crateManager.getScore() });
 
   // Wake / spray
   perfTracker.markStart('wake');
@@ -217,6 +218,34 @@ function animate() {
   perfTracker.markStart('camera');
   updateCamera(delta);
   perfTracker.markEnd('camera');
+
+  // Set perf context (before render so it captures current frame state)
+  let visibleIslandCount = 0;
+  for (let i = 0; i < islandGroups.length; i++) {
+    if (islandGroups[i].visible) visibleIslandCount++;
+  }
+  perfTracker.setContext({
+    speed: boatController.velocity.forward,
+    boost: boatController.boostAmount,
+    position: [boat.position.x, boat.position.z],
+    heading: boat.rotation.y,
+    jumping: boatController.isJumping,
+    splashActive: boatController.splashActive,
+    visibleIslands: visibleIslandCount,
+    cameraMode: cameraFollowHeading ? 'chase' : 'orbit',
+    zoom: zoomLevel,
+    tradingMenu: tradingSystem.isMenuOpen,
+    mouseDragging: isMouseDragging,
+    crateScore: crateManager.getScore(),
+    input: {
+      fwd: !!(boatController.keys['w'] || boatController.keys['arrowup']),
+      rev: !!(boatController.keys['s'] || boatController.keys['arrowdown']),
+      left: !!(boatController.keys['a'] || boatController.keys['arrowleft']),
+      right: !!(boatController.keys['d'] || boatController.keys['arrowright']),
+      boost: !!boatController.keys['shift'],
+      jump: !!boatController.keys[' '],
+    },
+  });
 
   // Render
   perfTracker.markStart('render');

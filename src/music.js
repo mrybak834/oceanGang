@@ -137,6 +137,149 @@ let crackles = s("hh*16?0.15")
 
 stack(stormSurf, stormOcarina, thunder, stormWind, candy, crackles)
   .scope({color:'#ff4444',thickness:2})`,
+
+  // ─── Community patches (credited, open-source) ───
+
+  'Perlin Depths': `// Complex filter envelope composition
+// Source: strudel.cc/learn/effects — Strudel official docs (AGPL-3.0)
+// Adapted for oceanic ambient context
+
+setcps(0.2)
+
+let filterBass = note("[c eb g <f bb>](3,8,<0 1>)".sub(12))
+  .s("<sawtooth>/64")
+  .lpf(sine.range(300, 2000).slow(16))
+  .lpa(0.005)
+  .lpd(perlin.range(0.02, 0.2))
+  .lps(perlin.range(0, 0.5).slow(3))
+  .lpq(sine.range(2, 10).slow(32))
+  .release(0.5)
+  .lpenv(perlin.range(1, 8).slow(2))
+  .ftype('24db')
+  .room(1)
+  .juxBy(0.5, rev)
+  .sometimes(add(note(12)))
+  .gain(0.4)
+
+let deepDrone = note("<c1 g1 eb1 bb0>")
+  .s("sine").slow(8)
+  .attack(4).release(6)
+  .lpf(perlin.range(60, 200).slow(24))
+  .gain(perlin.slow(16).range(0.05, 0.15))
+  .room(0.98).roomsize(0.95)
+
+let shimmer = note("~ c6 ~ ~ g5 ~ ~ eb6 ~ ~ ~ bb5 ~ ~ ~ ~")
+  .s("gm_fx_crystal").slow(10)
+  .gain(0.06)
+  .delay(0.6).delaytime(0.625).delayfeedback(0.65)
+  .room(0.97)
+
+let haze = sound("<brown pink>")
+  .gain(sine.slow(32).range(0.02, 0.07))
+  .lpf(perlin.slow(16).range(80, 400))
+  .hpf(30)
+  .room(0.95).roomsize(0.9)
+
+stack(filterBass, deepDrone, shimmer, haze)
+  .pianoroll({labels:1,active:'#66ffaa',background:'transparent'})`,
+
+  'Lo-Fi Horizon': `// Lo-fi chill beat with layered atmosphere
+// Source: Nicholas Griffin — nicholasgriffin.dev
+// "Creating Strudel Live Coding Patterns with AI" (2025)
+// Adapted: swapped sample banks for built-in GM/synth sounds
+
+setcps(0.34)
+
+// dusty drums with subtle swing
+let drums = s("bd*4,hh*8,[~ cp]!2")
+  .bank("RolandTR707")
+  .sometimesBy(0.2, x => x.gain(0.8))
+  .room(0.4).gain(0.45)
+
+// warm chord pads — gentle variation every 4 bars
+let chords = note("<[c3,e3,g3,b3] [f3,a3,c4,e4] [a2,c3,e3,g3] [g2,b2,d3,f3]>")
+  .s("gm_pad_warm").slow(2)
+  .lpf(800)
+  .room(0.7).gain(0.35)
+
+// mellow bass with subtle movement
+let bass = note("c2 ~ e2 ~ g2 ~ e2 ~")
+  .s("triangle").slow(2)
+  .lpf(200)
+  .attack(0.05).decay(0.3).sustain(0.6).release(0.4)
+  .gain(0.4)
+
+// soft synth pad with filter automation
+let pad = note("<[c3,g3] [f3,c4] [a2,e3] [g2,d3]>")
+  .s("sawtooth").slow(4)
+  .lpf(sine.range(200, 800).slow(16))
+  .attack(1).release(2)
+  .room(0.8).gain(0.2)
+
+// vinyl crackle atmosphere
+let crackle = sound("white")
+  .lpf(perlin.range(800, 2000).slow(8))
+  .hpf(400)
+  .gain(perlin.slow(12).range(0.005, 0.02))
+  .room(0.6)
+
+stack(drums, chords, bass, pad, crackle)
+  .pianoroll({labels:1,active:'#e8a87c',background:'transparent'})`,
+
+  'Dark Frequencies': `// Dense electronic layers with atmospheric texture
+// Source: Nicholas Griffin — nicholasgriffin.dev
+// "Creating Strudel Live Coding Patterns with AI" (2025)
+// Adapted: replaced unavailable samples with GM/synth equivalents
+
+setcps(0.27)
+
+// punchy kick foundation with syncopated accents
+let kick = s("bd*4")
+  .bank("RolandTR909")
+  .gain("1 0.9 1 [0.9 1.1]")
+  .shape(0.3).room(0.1)
+
+// deep rolling bassline with filter modulation
+let sub = note("c2 [c2 g2] eb2 [f2 eb2] c2 [c2 bb2] f2 [g2 f2]")
+  .s("sawtooth").slow(2)
+  .lpf(sine.slow(4).range(80, 400))
+  .shape(0.4).distort(0.15)
+  .lpf(perlin.slow(16).range(80, 1200))
+  .gain(0.5)
+
+// evolving hats with perlin gain
+let hats = s("hh*8")
+  .bank("RolandTR909")
+  .gain(perlin.slow(8).range(0.3, 0.7))
+  .hpf(8000)
+  .pan(sine.slow(3).range(0.3, 0.7))
+  .room(0.2)
+
+// rhythmic stabs with filter sweep
+let lead = note("<[d4 ~] [~ f4] [~ ~] [g4 ab4]>*2")
+  .s("square")
+  .gain(0.35)
+  .shape(0.5).crush(6)
+  .lpf(perlin.slow(8).range(400, 4000))
+  .delay(0.125).delayfeedback(0.4)
+  .room(0.4)
+  .pan(cosine.slow(2).range(0.2, 0.8))
+
+// clap accents with fills
+let claps = s("[~ cp] ~ [~ cp] <~ [cp sd]*2>")
+  .bank("RolandTR909")
+  .gain(0.55)
+  .shape(0.2).room(0.3).hpf(200)
+
+// dark atmospheric noise layer
+let atmosphere = sound("<brown pink>")
+  .gain(sine.slow(32).range(0.03, 0.1))
+  .lpf(perlin.slow(16).range(100, 600))
+  .hpf(40)
+  .room(0.9).roomsize(0.8)
+
+stack(kick, sub, hats, lead, claps, atmosphere)
+  .scope({color:'#aa44ff',thickness:2})`,
 };
 
 function makeStrudelURL(code) {
@@ -154,6 +297,15 @@ export function initMusicPanel() {
   let visible = false;
   let iframe = null;
   let currentScene = Object.keys(SCENES)[0];
+
+  // ── Populate scene dropdown from SCENES ──
+  sceneSelect.innerHTML = '';
+  for (const name of Object.keys(SCENES)) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    sceneSelect.appendChild(opt);
+  }
 
   // ── Load scene into iframe ──
   function loadScene(name) {

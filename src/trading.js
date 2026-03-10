@@ -260,5 +260,5 @@ export function createTradingSystem(scene, islandData, crateManager) {
     refreshHud(delta);
   }
 
-  return { update, materials };
+  return { update, materials, get isMenuOpen() { return menuOpen; } };
 }

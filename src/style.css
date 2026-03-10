@@ -533,6 +533,34 @@ canvas {
   white-space: nowrap;
 }
 
+.perf-duration-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.perf-dur-btn {
+  flex: 1;
+  padding: 3px 0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.45);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.perf-dur-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.7);
+}
+.perf-dur-btn.active {
+  background: rgba(255,80,80,0.2);
+  border-color: rgba(255,80,80,0.4);
+  color: #ff8888;
+}
+
 .perf-record-btn {
   margin-top: 8px;
   width: 100%;
