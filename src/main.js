@@ -14,6 +14,9 @@ import { createPerfTracker } from './perfTracker.js';
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
 let shipAudio, ocean, tradingSystem, perfTracker;
+let islandGroups = [], islandPositions = [];
+const ISLAND_VISIBLE_DIST = 3000;
+const ISLAND_HIDE_DIST = 3200;
 
 const clock = new THREE.Clock();
 
@@ -94,6 +97,8 @@ function init() {
 
   // Islands
   const islandsResult = createIslands(scene);
+  islandGroups = islandsResult.groups;
+  islandPositions = islandsResult.islandData;
 
   // Wake / spray
   wakeSystem = createWakeSystem(scene);
@@ -161,32 +166,63 @@ function animate() {
   const delta = clock.getDelta();
   const time = clock.getElapsedTime();
 
+  perfTracker.begin();
+
   // Update boat
+  perfTracker.markStart('boat');
   boatController.update(boat, delta, time);
+  perfTracker.markEnd('boat');
 
   // Update water time
   water.material.uniforms['time'].value += delta;
 
   // Update crates
+  perfTracker.markStart('crates');
   crateManager.update(boat.position, time);
+  perfTracker.markEnd('crates');
 
   // Wake / spray
+  perfTracker.markStart('wake');
   wakeSystem.update(delta, time, boat, boatController);
+  perfTracker.markEnd('wake');
 
   // Wind boost visual
+  perfTracker.markStart('wind');
   windEffect.update(time, boatController.boostAmount, boat, camera);
+  perfTracker.markEnd('wind');
+
+  // Distance-cull islands to cap draw calls
+  const bx = boat.position.x, bz = boat.position.z;
+  for (let i = 0; i < islandGroups.length; i++) {
+    const ip = islandPositions[i];
+    const dx = bx - ip.x, dz = bz - ip.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    // Hysteresis: show at VISIBLE_DIST, hide at HIDE_DIST
+    if (islandGroups[i].visible) {
+      if (dist > ISLAND_HIDE_DIST) islandGroups[i].visible = false;
+    } else {
+      if (dist < ISLAND_VISIBLE_DIST) islandGroups[i].visible = true;
+    }
+  }
 
   // Island barriers + trading
+  perfTracker.markStart('trading');
   tradingSystem.update(boat, delta);
+  perfTracker.markEnd('trading');
 
   // Ship water audio
   shipAudio.update(boatController.velocity.forward, boatController.boostAmount);
 
   // Camera follow
+  perfTracker.markStart('camera');
   updateCamera(delta);
+  perfTracker.markEnd('camera');
 
-  perfTracker.begin();
+  // Render
+  perfTracker.markStart('render');
   renderer.render(scene, camera);
+  perfTracker.markEnd('render');
+
   perfTracker.end(delta);
 }
 

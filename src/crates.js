@@ -6,47 +6,43 @@ const COLLECT_DISTANCE = 8;
 
 export function createCrateManager(scene) {
   let score = 0;
-  const crates = [];
+  const pool = [];       // all crate groups (always in scene)
   const scoreEl = document.getElementById('score');
 
-  // Crate materials
+  // Shared geometry/materials
   const crateGeometry = new THREE.BoxGeometry(2, 2, 2);
   const crateMaterial = new THREE.MeshStandardMaterial({
     color: 0xcd853f,
     roughness: 0.7,
     metalness: 0.1,
   });
-
-  // Band material for detail
   const bandGeometry = new THREE.BoxGeometry(2.1, 0.3, 2.1);
   const bandMaterial = new THREE.MeshStandardMaterial({
     color: 0x8b6914,
     roughness: 0.5,
     metalness: 0.3,
   });
+  const glowGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+  const glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
 
-  function spawnCrate(playerPos) {
+  function createCrateGroup() {
     const group = new THREE.Group();
-
-    const box = new THREE.Mesh(crateGeometry, crateMaterial);
-    group.add(box);
-
-    // Add bands
+    group.add(new THREE.Mesh(crateGeometry, crateMaterial));
     const band1 = new THREE.Mesh(bandGeometry, bandMaterial);
     band1.position.y = 0.5;
     group.add(band1);
     const band2 = new THREE.Mesh(bandGeometry, bandMaterial);
     band2.position.y = -0.5;
     group.add(band2);
-
-    // Glow indicator
-    const glowGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     glow.position.y = 1.5;
     group.add(glow);
+    group.visible = false;
+    scene.add(group);
+    return group;
+  }
 
-    // Random position around player
+  function placeCrate(group, playerPos) {
     const angle = Math.random() * Math.PI * 2;
     const dist = 40 + Math.random() * SPAWN_RADIUS;
     group.position.set(
@@ -54,25 +50,24 @@ export function createCrateManager(scene) {
       0,
       playerPos.z + Math.sin(angle) * dist
     );
-
-    // Random initial rotation
     group.rotation.y = Math.random() * Math.PI * 2;
-
-    scene.add(group);
-    crates.push(group);
+    group.visible = true;
   }
 
   function init(playerPos) {
     for (let i = 0; i < CRATE_COUNT; i++) {
-      spawnCrate(playerPos);
+      const group = createCrateGroup();
+      placeCrate(group, playerPos);
+      pool.push(group);
     }
   }
 
   function update(playerPos, time) {
     let collected = false;
 
-    for (let i = crates.length - 1; i >= 0; i--) {
-      const crate = crates[i];
+    for (let i = 0; i < pool.length; i++) {
+      const crate = pool[i];
+      if (!crate.visible) continue;
 
       // Bob and rotate
       crate.position.y = Math.sin(time * 2 + i) * 0.5 + 0.5;
@@ -90,23 +85,21 @@ export function createCrateManager(scene) {
       const dist = Math.sqrt(dx * dx + dz * dz);
 
       if (dist < COLLECT_DISTANCE) {
-        scene.remove(crate);
-        crates.splice(i, 1);
+        crate.visible = false;
         score++;
         scoreEl.textContent = `Crates: ${score}`;
         collected = true;
-      }
-
-      // Remove crates that are too far away and respawn closer
-      if (dist > SPAWN_RADIUS * 2) {
-        scene.remove(crate);
-        crates.splice(i, 1);
+      } else if (dist > SPAWN_RADIUS * 2) {
+        // Too far — recycle immediately
+        placeCrate(crate, playerPos);
       }
     }
 
-    // Keep crate count up
-    while (crates.length < CRATE_COUNT) {
-      spawnCrate(playerPos);
+    // Re-activate any hidden crates
+    for (let i = 0; i < pool.length; i++) {
+      if (!pool[i].visible) {
+        placeCrate(pool[i], playerPos);
+      }
     }
 
     return collected;

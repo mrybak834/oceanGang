@@ -532,3 +532,37 @@ canvas {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.perf-record-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 5px 0;
+  border: 1px solid rgba(255,80,80,0.4);
+  border-radius: 5px;
+  background: rgba(255,50,50,0.15);
+  color: #ff8888;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.perf-record-btn:hover:not(:disabled) {
+  background: rgba(255,50,50,0.3);
+}
+.perf-record-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  animation: perf-pulse 1s ease infinite;
+}
+@keyframes perf-pulse {
+  0%, 100% { border-color: rgba(255,80,80,0.4); }
+  50% { border-color: rgba(255,80,80,0.9); }
+}
+
+.perf-record-status {
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  text-align: center;
+  margin-top: 4px;
+  min-height: 14px;
+}

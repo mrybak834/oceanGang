@@ -1,0 +1,2342 @@
+{
+  "meta": {
+    "date": "2026-03-10T02:59:08.441Z",
+    "duration": "5s",
+    "frameCount": 151,
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "resolution": "1728x958",
+    "pixelRatio": 2,
+    "jsHeapMB": 51.8
+  },
+  "summary": {
+    "avgFps": 163.3,
+    "minFps": 109.9,
+    "avgFrameTime": 6.12,
+    "minFrameTime": 3.2,
+    "maxFrameTime": 9.1,
+    "p50": 6.2,
+    "p95": 8,
+    "p99": 8.8,
+    "hitches_over_33ms": 0,
+    "severe_hitches_over_50ms": 0
+  },
+  "renderer": {
+    "drawCalls": 328,
+    "triangles": 70076,
+    "geometries": 949,
+    "textures": 37
+  },
+  "subsystems": {
+    "ranked": [
+      {
+        "name": "render",
+        "avg": 5.682,
+        "max": 8.6
+      },
+      {
+        "name": "boat",
+        "avg": 0.258,
+        "max": 0.5
+      },
+      {
+        "name": "crates",
+        "avg": 0.04,
+        "max": 0.5
+      },
+      {
+        "name": "wind",
+        "avg": 0.04,
+        "max": 0.2
+      },
+      {
+        "name": "camera",
+        "avg": 0.034,
+        "max": 0.2
+      },
+      {
+        "name": "wake",
+        "avg": 0.028,
+        "max": 0.2
+      },
+      {
+        "name": "trading",
+        "avg": 0.01,
+        "max": 0.2
+      }
+    ],
+    "totalAvg": 6.092,
+    "bottleneck": "render (92.8% of frame time)"
+  },
+  "analysis": [
+    "CPU-bound: JS subsystems take 6.1ms of 6.1ms frame budget",
+    "High draw call count: 328 — consider merging geometries or using instancing",
+    "Subsystem \"render\" is expensive: avg 5.68ms, max 8.60ms"
+  ],
+  "frames": [
+    {
+      "t": 29,
+      "ft": 3.9,
+      "dc": 528,
+      "tri": 68576,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.6
+      }
+    },
+    {
+      "t": 63.9,
+      "ft": 5.6,
+      "dc": 530,
+      "tri": 68590,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.2
+      }
+    },
+    {
+      "t": 97.6,
+      "ft": 5.5,
+      "dc": 530,
+      "tri": 68590,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.1
+      }
+    },
+    {
+      "t": 130.5,
+      "ft": 5.2,
+      "dc": 532,
+      "tri": 68604,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0.1,
+        "camera": 0.1,
+        "render": 4.7
+      }
+    },
+    {
+      "t": 164.1,
+      "ft": 5.5,
+      "dc": 532,
+      "tri": 68604,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.1
+      }
+    },
+    {
+      "t": 195.8,
+      "ft": 4,
+      "dc": 532,
+      "tri": 68604,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.8
+      }
+    },
+    {
+      "t": 228.4,
+      "ft": 3.8,
+      "dc": 532,
+      "tri": 68604,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 3.5
+      }
+    },
+    {
+      "t": 262.1,
+      "ft": 4.1,
+      "dc": 533,
+      "tri": 68611,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4
+      }
+    },
+    {
+      "t": 295.4,
+      "ft": 3.9,
+      "dc": 534,
+      "tri": 68618,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.7
+      }
+    },
+    {
+      "t": 328.9,
+      "ft": 4.4,
+      "dc": 534,
+      "tri": 68618,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.2
+      }
+    },
+    {
+      "t": 361.7,
+      "ft": 3.7,
+      "dc": 535,
+      "tri": 68625,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.4
+      }
+    },
+    {
+      "t": 395,
+      "ft": 3.8,
+      "dc": 535,
+      "tri": 68549,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.6
+      }
+    },
+    {
+      "t": 428.5,
+      "ft": 3.8,
+      "dc": 534,
+      "tri": 68427,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.5
+      }
+    },
+    {
+      "t": 462.1,
+      "ft": 4.2,
+      "dc": 530,
+      "tri": 68379,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.1
+      }
+    },
+    {
+      "t": 494.8,
+      "ft": 3.2,
+      "dc": 537,
+      "tri": 68428,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.2,
+        "render": 2.6
+      }
+    },
+    {
+      "t": 532.9,
+      "ft": 8,
+      "dc": 549,
+      "tri": 68779,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 7.4
+      }
+    },
+    {
+      "t": 564.9,
+      "ft": 6.3,
+      "dc": 559,
+      "tri": 68849,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.8
+      }
+    },
+    {
+      "t": 599,
+      "ft": 7.2,
+      "dc": 587,
+      "tri": 69223,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.6
+      }
+    },
+    {
+      "t": 633.9,
+      "ft": 8.7,
+      "dc": 598,
+      "tri": 69300,
+      "sub": {
+        "boat": 0.5,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 8.1
+      }
+    },
+    {
+      "t": 664.1,
+      "ft": 5.7,
+      "dc": 606,
+      "tri": 69356,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5
+      }
+    },
+    {
+      "t": 698.7,
+      "ft": 6.9,
+      "dc": 608,
+      "tri": 69370,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.4
+      }
+    },
+    {
+      "t": 732.2,
+      "ft": 7.2,
+      "dc": 608,
+      "tri": 69370,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.8
+      }
+    },
+    {
+      "t": 764.4,
+      "ft": 6.8,
+      "dc": 608,
+      "tri": 69370,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.2
+      }
+    },
+    {
+      "t": 796.6,
+      "ft": 4.8,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0.1,
+        "camera": 0.1,
+        "render": 4.2
+      }
+    },
+    {
+      "t": 831.5,
+      "ft": 6.4,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.9
+      }
+    },
+    {
+      "t": 863.6,
+      "ft": 5.7,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.3
+      }
+    },
+    {
+      "t": 897.6,
+      "ft": 5.9,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.4
+      }
+    },
+    {
+      "t": 928.3,
+      "ft": 4.3,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.9
+      }
+    },
+    {
+      "t": 962.1,
+      "ft": 4.3,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 3.8
+      }
+    },
+    {
+      "t": 999,
+      "ft": 7.7,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 7.1
+      }
+    },
+    {
+      "t": 1032,
+      "ft": 6.9,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.2
+      }
+    },
+    {
+      "t": 1065.8,
+      "ft": 7.6,
+      "dc": 609,
+      "tri": 69372,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.2,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.9
+      }
+    },
+    {
+      "t": 1097.8,
+      "ft": 6.8,
+      "dc": 610,
+      "tri": 69374,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.1
+      }
+    },
+    {
+      "t": 1132.8,
+      "ft": 8,
+      "dc": 610,
+      "tri": 69374,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 7.3
+      }
+    },
+    {
+      "t": 1165.6,
+      "ft": 7.3,
+      "dc": 589,
+      "tri": 68870,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.2,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.6
+      }
+    },
+    {
+      "t": 1198.3,
+      "ft": 7.3,
+      "dc": 583,
+      "tri": 66054,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.8
+      }
+    },
+    {
+      "t": 1230.1,
+      "ft": 5.3,
+      "dc": 583,
+      "tri": 66054,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.2,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.7
+      }
+    },
+    {
+      "t": 1263.6,
+      "ft": 5.7,
+      "dc": 584,
+      "tri": 66056,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.2,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.1
+      }
+    },
+    {
+      "t": 1295.6,
+      "ft": 4.3,
+      "dc": 584,
+      "tri": 66056,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.9
+      }
+    },
+    {
+      "t": 1332.1,
+      "ft": 7.6,
+      "dc": 585,
+      "tri": 66058,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.2,
+        "trading": 0.1,
+        "camera": 0.1,
+        "render": 6.9
+      }
+    },
+    {
+      "t": 1364.8,
+      "ft": 7.1,
+      "dc": 585,
+      "tri": 66058,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.5
+      }
+    },
+    {
+      "t": 1397.1,
+      "ft": 6.1,
+      "dc": 510,
+      "tri": 64562,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.7
+      }
+    },
+    {
+      "t": 1431.4,
+      "ft": 7.1,
+      "dc": 414,
+      "tri": 62434,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.5
+      }
+    },
+    {
+      "t": 1463.9,
+      "ft": 5.8,
+      "dc": 408,
+      "tri": 61850,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.3
+      }
+    },
+    {
+      "t": 1498.3,
+      "ft": 7.3,
+      "dc": 406,
+      "tri": 30166,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.8
+      }
+    },
+    {
+      "t": 1530.9,
+      "ft": 6.6,
+      "dc": 405,
+      "tri": 30054,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0.1,
+        "camera": 0.1,
+        "render": 6.1
+      }
+    },
+    {
+      "t": 1564.7,
+      "ft": 7,
+      "dc": 375,
+      "tri": 29499,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.6
+      }
+    },
+    {
+      "t": 1597,
+      "ft": 5.4,
+      "dc": 326,
+      "tri": 26793,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5
+      }
+    },
+    {
+      "t": 1631.1,
+      "ft": 6.8,
+      "dc": 302,
+      "tri": 25066,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.4
+      }
+    },
+    {
+      "t": 1663.6,
+      "ft": 6.3,
+      "dc": 297,
+      "tri": 22252,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.8
+      }
+    },
+    {
+      "t": 1699,
+      "ft": 7.7,
+      "dc": 298,
+      "tri": 22254,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 7.1
+      }
+    },
+    {
+      "t": 1731.9,
+      "ft": 6.9,
+      "dc": 298,
+      "tri": 22254,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.2,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.4
+      }
+    },
+    {
+      "t": 1761.7,
+      "ft": 3.7,
+      "dc": 298,
+      "tri": 22254,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.5
+      }
+    },
+    {
+      "t": 1796.9,
+      "ft": 5.8,
+      "dc": 298,
+      "tri": 22254,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.5,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 4.9
+      }
+    },
+    {
+      "t": 1829.7,
+      "ft": 5.4,
+      "dc": 298,
+      "tri": 22254,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 4.8
+      }
+    },
+    {
+      "t": 1864.6,
+      "ft": 6.9,
+      "dc": 298,
+      "tri": 22254,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.4
+      }
+    },
+    {
+      "t": 1895.7,
+      "ft": 4.8,
+      "dc": 298,
+      "tri": 22254,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.3
+      }
+    },
+    {
+      "t": 1931.8,
+      "ft": 7.1,
+      "dc": 297,
+      "tri": 22252,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0.3,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.3
+      }
+    },
+    {
+      "t": 1964.2,
+      "ft": 6.6,
+      "dc": 302,
+      "tri": 25066,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6
+      }
+    },
+    {
+      "t": 1999.6,
+      "ft": 8.2,
+      "dc": 401,
+      "tri": 30073,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 7.7
+      }
+    },
+    {
+      "t": 2031.4,
+      "ft": 6.8,
+      "dc": 407,
+      "tri": 46008,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.4
+      }
+    },
+    {
+      "t": 2065.2,
+      "ft": 7.6,
+      "dc": 440,
+      "tri": 63093,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 7.2
+      }
+    },
+    {
+      "t": 2098.1,
+      "ft": 7.2,
+      "dc": 584,
+      "tri": 66056,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.2,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.7
+      }
+    },
+    {
+      "t": 2129.3,
+      "ft": 5,
+      "dc": 583,
+      "tri": 66054,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 4.6
+      }
+    },
+    {
+      "t": 2164.1,
+      "ft": 6.1,
+      "dc": 606,
+      "tri": 69288,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.2,
+        "render": 5.5
+      }
+    },
+    {
+      "t": 2199.1,
+      "ft": 7.9,
+      "dc": 617,
+      "tri": 69668,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.3,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 7.3
+      }
+    },
+    {
+      "t": 2232.2,
+      "ft": 7.3,
+      "dc": 617,
+      "tri": 69668,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0.1,
+        "camera": 0,
+        "render": 6.9
+      }
+    },
+    {
+      "t": 2264,
+      "ft": 6.1,
+      "dc": 617,
+      "tri": 69668,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.6
+      }
+    },
+    {
+      "t": 2297.4,
+      "ft": 5.9,
+      "dc": 617,
+      "tri": 69668,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.5
+      }
+    },
+    {
+      "t": 2331,
+      "ft": 6.6,
+      "dc": 673,
+      "tri": 73484,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6
+      }
+    },
+    {
+      "t": 2364.6,
+      "ft": 6.5,
+      "dc": 674,
+      "tri": 103758,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0.2,
+        "camera": 0,
+        "render": 5.9
+      }
+    },
+    {
+      "t": 2398.2,
+      "ft": 6.9,
+      "dc": 674,
+      "tri": 103758,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.4
+      }
+    },
+    {
+      "t": 2431.1,
+      "ft": 6.3,
+      "dc": 676,
+      "tri": 104198,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.9
+      }
+    },
+    {
+      "t": 2465.2,
+      "ft": 7.3,
+      "dc": 675,
+      "tri": 101964,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.9
+      }
+    },
+    {
+      "t": 2498.2,
+      "ft": 6.7,
+      "dc": 676,
+      "tri": 102034,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.1
+      }
+    },
+    {
+      "t": 2532.1,
+      "ft": 7.6,
+      "dc": 695,
+      "tri": 101945,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 7.1
+      }
+    },
+    {
+      "t": 2563.1,
+      "ft": 5.4,
+      "dc": 703,
+      "tri": 102090,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.1
+      }
+    },
+    {
+      "t": 2596.1,
+      "ft": 5.2,
+      "dc": 712,
+      "tri": 102300,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5
+      }
+    },
+    {
+      "t": 2631.3,
+      "ft": 6.6,
+      "dc": 716,
+      "tri": 102412,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.3,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.9
+      }
+    },
+    {
+      "t": 2664.8,
+      "ft": 7.1,
+      "dc": 706,
+      "tri": 102106,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.5
+      }
+    },
+    {
+      "t": 2697.9,
+      "ft": 6.4,
+      "dc": 695,
+      "tri": 101945,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.4,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.7
+      }
+    },
+    {
+      "t": 2731.9,
+      "ft": 7.5,
+      "dc": 674,
+      "tri": 101526,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0.1,
+        "camera": 0,
+        "render": 7
+      }
+    },
+    {
+      "t": 2763.3,
+      "ft": 5.4,
+      "dc": 672,
+      "tri": 101386,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0.3,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.6
+      }
+    },
+    {
+      "t": 2798.2,
+      "ft": 7.4,
+      "dc": 679,
+      "tri": 101680,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.9
+      }
+    },
+    {
+      "t": 2830,
+      "ft": 5.3,
+      "dc": 679,
+      "tri": 73708,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.8
+      }
+    },
+    {
+      "t": 2863.2,
+      "ft": 5.4,
+      "dc": 625,
+      "tri": 69964,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5
+      }
+    },
+    {
+      "t": 2897.8,
+      "ft": 6.6,
+      "dc": 625,
+      "tri": 69964,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0.2,
+        "camera": 0,
+        "render": 5.8
+      }
+    },
+    {
+      "t": 2931.7,
+      "ft": 7.2,
+      "dc": 615,
+      "tri": 69530,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.7
+      }
+    },
+    {
+      "t": 2964.3,
+      "ft": 6.8,
+      "dc": 608,
+      "tri": 66754,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0.3,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6
+      }
+    },
+    {
+      "t": 2994.8,
+      "ft": 3.8,
+      "dc": 602,
+      "tri": 66652,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.7
+      }
+    },
+    {
+      "t": 3031.8,
+      "ft": 7.5,
+      "dc": 433,
+      "tri": 63100,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 7
+      }
+    },
+    {
+      "t": 3064.1,
+      "ft": 6.3,
+      "dc": 423,
+      "tri": 30760,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.9
+      }
+    },
+    {
+      "t": 3098.4,
+      "ft": 7,
+      "dc": 347,
+      "tri": 29190,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.4
+      }
+    },
+    {
+      "t": 3132.2,
+      "ft": 7.9,
+      "dc": 330,
+      "tri": 23438,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.3,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 7.2
+      }
+    },
+    {
+      "t": 3164.4,
+      "ft": 6.4,
+      "dc": 319,
+      "tri": 22906,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.9
+      }
+    },
+    {
+      "t": 3197,
+      "ft": 6.1,
+      "dc": 321,
+      "tri": 22920,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.6
+      }
+    },
+    {
+      "t": 3231.7,
+      "ft": 7.4,
+      "dc": 323,
+      "tri": 23034,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.8
+      }
+    },
+    {
+      "t": 3263.2,
+      "ft": 5.3,
+      "dc": 322,
+      "tri": 23032,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.9
+      }
+    },
+    {
+      "t": 3295.1,
+      "ft": 4.3,
+      "dc": 322,
+      "tri": 23032,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 3.7
+      }
+    },
+    {
+      "t": 3330.5,
+      "ft": 6.3,
+      "dc": 321,
+      "tri": 23030,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.2,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.7
+      }
+    },
+    {
+      "t": 3364.5,
+      "ft": 6.8,
+      "dc": 319,
+      "tri": 22958,
+      "sub": {
+        "boat": 0.5,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.1
+      }
+    },
+    {
+      "t": 3398.2,
+      "ft": 7.3,
+      "dc": 320,
+      "tri": 25648,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.8
+      }
+    },
+    {
+      "t": 3431.1,
+      "ft": 6.6,
+      "dc": 319,
+      "tri": 42475,
+      "sub": {
+        "boat": 0.4,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0.1,
+        "camera": 0,
+        "render": 6
+      }
+    },
+    {
+      "t": 3466.7,
+      "ft": 9.1,
+      "dc": 449,
+      "tri": 45176,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 8.6
+      }
+    },
+    {
+      "t": 3496.5,
+      "ft": 5.6,
+      "dc": 552,
+      "tri": 50156,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.3
+      }
+    },
+    {
+      "t": 3528.6,
+      "ft": 4.4,
+      "dc": 580,
+      "tri": 48534,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.3
+      }
+    },
+    {
+      "t": 3565.7,
+      "ft": 7.9,
+      "dc": 581,
+      "tri": 48536,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 7.3
+      }
+    },
+    {
+      "t": 3598.3,
+      "ft": 7.2,
+      "dc": 578,
+      "tri": 48026,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.7
+      }
+    },
+    {
+      "t": 3631,
+      "ft": 6.5,
+      "dc": 584,
+      "tri": 72254,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6
+      }
+    },
+    {
+      "t": 3666,
+      "ft": 8.3,
+      "dc": 725,
+      "tri": 77904,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 7.8
+      }
+    },
+    {
+      "t": 3695.8,
+      "ft": 5,
+      "dc": 726,
+      "tri": 77906,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 4.7
+      }
+    },
+    {
+      "t": 3729.1,
+      "ft": 4.9,
+      "dc": 734,
+      "tri": 78202,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.8
+      }
+    },
+    {
+      "t": 3763.5,
+      "ft": 6.1,
+      "dc": 831,
+      "tri": 88115,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.8
+      }
+    },
+    {
+      "t": 3796,
+      "ft": 5.3,
+      "dc": 830,
+      "tri": 88113,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5
+      }
+    },
+    {
+      "t": 3829.1,
+      "ft": 4.9,
+      "dc": 825,
+      "tri": 85735,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.7
+      }
+    },
+    {
+      "t": 3863.9,
+      "ft": 6.5,
+      "dc": 887,
+      "tri": 91989,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.3
+      }
+    },
+    {
+      "t": 3896.1,
+      "ft": 5.3,
+      "dc": 886,
+      "tri": 91987,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.1
+      }
+    },
+    {
+      "t": 3929.4,
+      "ft": 5.3,
+      "dc": 891,
+      "tri": 94801,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.2
+      }
+    },
+    {
+      "t": 3962.8,
+      "ft": 5.4,
+      "dc": 898,
+      "tri": 97755,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0.1,
+        "camera": 0,
+        "render": 5.1
+      }
+    },
+    {
+      "t": 3995.4,
+      "ft": 4.7,
+      "dc": 896,
+      "tri": 97751,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.4
+      }
+    },
+    {
+      "t": 4031.6,
+      "ft": 7.4,
+      "dc": 778,
+      "tri": 103538,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.9
+      }
+    },
+    {
+      "t": 4066.3,
+      "ft": 8.8,
+      "dc": 957,
+      "tri": 96371,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 8.6
+      }
+    },
+    {
+      "t": 4097.6,
+      "ft": 6.8,
+      "dc": 1039,
+      "tri": 98057,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.6
+      }
+    },
+    {
+      "t": 4129.8,
+      "ft": 5.8,
+      "dc": 1046,
+      "tri": 98351,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.6
+      }
+    },
+    {
+      "t": 4163.4,
+      "ft": 6,
+      "dc": 908,
+      "tri": 71368,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 5.6
+      }
+    },
+    {
+      "t": 4196.9,
+      "ft": 6.2,
+      "dc": 947,
+      "tri": 74882,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.9
+      }
+    },
+    {
+      "t": 4229.9,
+      "ft": 5.8,
+      "dc": 891,
+      "tri": 86677,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.6
+      }
+    },
+    {
+      "t": 4265,
+      "ft": 7.6,
+      "dc": 957,
+      "tri": 82742,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 7.3
+      }
+    },
+    {
+      "t": 4295.7,
+      "ft": 5,
+      "dc": 956,
+      "tri": 82740,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.7
+      }
+    },
+    {
+      "t": 4329.6,
+      "ft": 5.6,
+      "dc": 956,
+      "tri": 82740,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.3
+      }
+    },
+    {
+      "t": 4362,
+      "ft": 4.6,
+      "dc": 910,
+      "tri": 79177,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.5
+      }
+    },
+    {
+      "t": 4396.5,
+      "ft": 5.7,
+      "dc": 891,
+      "tri": 75976,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.6
+      }
+    },
+    {
+      "t": 4431.3,
+      "ft": 6.8,
+      "dc": 891,
+      "tri": 75976,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.3
+      }
+    },
+    {
+      "t": 4463,
+      "ft": 5.5,
+      "dc": 891,
+      "tri": 75976,
+      "sub": {
+        "boat": 0.1,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.4
+      }
+    },
+    {
+      "t": 4496.2,
+      "ft": 5.4,
+      "dc": 891,
+      "tri": 75976,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.2
+      }
+    },
+    {
+      "t": 4529.7,
+      "ft": 5.6,
+      "dc": 891,
+      "tri": 75976,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.4
+      }
+    },
+    {
+      "t": 4562.6,
+      "ft": 5.2,
+      "dc": 891,
+      "tri": 75976,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.9
+      }
+    },
+    {
+      "t": 4598,
+      "ft": 7,
+      "dc": 891,
+      "tri": 75976,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.6
+      }
+    },
+    {
+      "t": 4629,
+      "ft": 4.8,
+      "dc": 891,
+      "tri": 75976,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.6
+      }
+    },
+    {
+      "t": 4666,
+      "ft": 8.3,
+      "dc": 892,
+      "tri": 75978,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 7.8
+      }
+    },
+    {
+      "t": 4697.8,
+      "ft": 6.9,
+      "dc": 892,
+      "tri": 75978,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0.1,
+        "render": 6.4
+      }
+    },
+    {
+      "t": 4729.6,
+      "ft": 5.6,
+      "dc": 892,
+      "tri": 75978,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0.1,
+        "camera": 0,
+        "render": 5.3
+      }
+    },
+    {
+      "t": 4763,
+      "ft": 5.6,
+      "dc": 956,
+      "tri": 82740,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.4
+      }
+    },
+    {
+      "t": 4796.7,
+      "ft": 6,
+      "dc": 956,
+      "tri": 82740,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.8
+      }
+    },
+    {
+      "t": 4831.4,
+      "ft": 6.9,
+      "dc": 957,
+      "tri": 82742,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.5
+      }
+    },
+    {
+      "t": 4863.2,
+      "ft": 5.8,
+      "dc": 960,
+      "tri": 82748,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 5.6
+      }
+    },
+    {
+      "t": 4895.6,
+      "ft": 4.9,
+      "dc": 858,
+      "tri": 70644,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.6
+      }
+    },
+    {
+      "t": 4928.7,
+      "ft": 4.7,
+      "dc": 661,
+      "tri": 63906,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0,
+        "wind": 0,
+        "trading": 0,
+        "camera": 0,
+        "render": 4.4
+      }
+    },
+    {
+      "t": 4963.5,
+      "ft": 5.7,
+      "dc": 473,
+      "tri": 52482,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0.1,
+        "wake": 0,
+        "wind": 0.1,
+        "trading": 0.1,
+        "camera": 0.1,
+        "render": 5
+      }
+    },
+    {
+      "t": 4995.7,
+      "ft": 4.6,
+      "dc": 387,
+      "tri": 74103,
+      "sub": {
+        "boat": 0.2,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0,
+        "trading": 0.1,
+        "camera": 0.1,
+        "render": 4.1
+      }
+    },
+    {
+      "t": 5031.1,
+      "ft": 6.6,
+      "dc": 328,
+      "tri": 70076,
+      "sub": {
+        "boat": 0.3,
+        "crates": 0,
+        "wake": 0.1,
+        "wind": 0.1,
+        "trading": 0,
+        "camera": 0,
+        "render": 6.1
+      }
+    }
+  ]
+}

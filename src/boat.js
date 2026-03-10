@@ -1046,7 +1046,6 @@ export function createBoatController() {
         pos.setZ(i, z);
       }
       pos.needsUpdate = true;
-      geo.computeVertexNormals();
     }
 
     if (boat.userData.mainSail) animateSail(boat.userData.mainSail, 1.2);
