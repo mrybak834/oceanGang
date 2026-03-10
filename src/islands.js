@@ -101,6 +101,18 @@ export function createIslands(scene) {
 
   const positions = [];
 
+  // ── Starting island — straight ahead from spawn ──
+  {
+    const sx = 0, sz = -280, sRadius = 40;
+    positions.push({ x: sx, z: sz, r: sRadius });
+    const noiseSeed = (rand() * 0x7fffffff) | 0;
+    const group = buildIsland(sRadius, rand, noiseSeed);
+    group.position.set(sx, 0, sz);
+    group.userData.r = sRadius;
+    scene.add(group);
+    islands.push(group);
+  }
+
   function tooClose(x, z, minGap) {
     for (const p of positions) {
       const dx = x - p.x, dz = z - p.z;

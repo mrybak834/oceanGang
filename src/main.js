@@ -13,10 +13,12 @@ import { createTradingSystem } from './trading.js';
 import { createPerfTracker } from './perfTracker.js';
 import { createTitleScreen } from './titleScreen.js';
 import { createInstrumentRegistry } from './instruments.js';
+import { createCompass } from './compass.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
-let shipAudio, ocean, tradingSystem, perfTracker, instrumentRegistry;
+let shipAudio, ocean, tradingSystem, perfTracker, instrumentRegistry, compass;
+let compassCamera, compassRenderer;
 let islandGroups = [], islandPositions = [];
 let wasJumping = false;
 let wasSplashing = false;
@@ -81,6 +83,10 @@ function init() {
   );
   camera.position.set(0, 15, 35);
   scene.add(camera);
+
+  compassCamera = new THREE.PerspectiveCamera(36, 1, 1, 1200);
+  compassCamera.up.set(0, 0, -1);
+  scene.add(compassCamera);
 
   // Wind boost effect (3D streaks in world space)
   windEffect = createWindEffect(scene);
@@ -169,6 +175,10 @@ function init() {
   // Performance tracker (P key)
   perfTracker = createPerfTracker(renderer);
 
+  // Compass + speed gauge
+  compass = createCompass();
+  initCompassCameraInset();
+
   // Title screen
   createTitleScreen();
 }
@@ -177,6 +187,10 @@ function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (compassRenderer && compass?.insetSize) {
+    compassRenderer.setPixelRatio(window.devicePixelRatio);
+    compassRenderer.setSize(compass.insetSize, compass.insetSize);
+  }
 }
 
 function animate() {
@@ -240,6 +254,9 @@ function animate() {
   wasJumping = boatController.isJumping;
   wasSplashing = boatController.splashActive;
 
+  // Compass + speed gauge
+  compass.update(boat, boatController);
+
   // Camera follow
   perfTracker.markStart('camera');
   if (!shipEditor?.isDragging) updateCamera(delta);
@@ -280,6 +297,7 @@ function animate() {
   // Render
   perfTracker.markStart('render');
   renderer.render(scene, camera);
+  renderCompassCamera();
   perfTracker.markEnd('render');
 
   perfTracker.end(delta);
@@ -302,6 +320,40 @@ function updateCamera(delta) {
 
   // Look at boat
   camera.lookAt(boat.position);
+}
+
+function initCompassCameraInset() {
+  if (!compass?.insetElement || !compass?.insetSize) return;
+  compassRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  compassRenderer.setPixelRatio(window.devicePixelRatio);
+  compassRenderer.setSize(compass.insetSize, compass.insetSize);
+  compassRenderer.toneMapping = renderer.toneMapping;
+  compassRenderer.toneMappingExposure = renderer.toneMappingExposure;
+  Object.assign(compassRenderer.domElement.style, {
+    width: '100%',
+    height: '100%',
+    display: 'block',
+  });
+  compass.insetElement.appendChild(compassRenderer.domElement);
+}
+
+function renderCompassCamera() {
+  if (!compassRenderer || !compassCamera || !boat) return;
+
+  compassCamera.aspect = 1;
+  compassCamera.position.set(
+    boat.position.x,
+    boat.position.y + 92,
+    boat.position.z + 30
+  );
+  compassCamera.lookAt(
+    boat.position.x,
+    boat.position.y + 8,
+    boat.position.z
+  );
+  compassCamera.updateProjectionMatrix();
+
+  compassRenderer.render(scene, compassCamera);
 }
 
 function initShipEditor() {

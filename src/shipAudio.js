@@ -1,5 +1,5 @@
 // ─── Ship Water Audio — Web Audio synthesis tied to boat speed ───
-// Brown noise hull wash + splash bubbles + wind whistle at boost
+// Brown noise hull wash + splash bubbles
 
 export function createShipAudio() {
   let ctx = null;
@@ -19,7 +19,6 @@ export function createShipAudio() {
   // Nodes
   let hullNoiseSource, hullFilter, hullGain;
   let splashNoiseSource, splashFilter, splashGain;
-  let windNoiseSource, windHPF, windLPF, windGain;
   // Ocean wave layers
   let closeWaveSrc, closeWaveLPF, closeWaveGain, closeWaveLFO, closeWaveLFOGain;
   let farWaveSrc, farWaveLPF, farWaveGain, farWaveLFO, farWaveLFOGain;
@@ -94,30 +93,6 @@ export function createShipAudio() {
     splashFilter.connect(splashGain);
     splashGain.connect(masterGain);
     splashNoiseSource.start();
-
-    // ── Wind whistle: white noise → highpass → lowpass (narrow band) → gain ──
-    windNoiseSource = ctx.createBufferSource();
-    windNoiseSource.buffer = whiteBuf;
-    windNoiseSource.loop = true;
-
-    windHPF = ctx.createBiquadFilter();
-    windHPF.type = 'highpass';
-    windHPF.frequency.value = 800;
-    windHPF.Q.value = 1.0;
-
-    windLPF = ctx.createBiquadFilter();
-    windLPF.type = 'lowpass';
-    windLPF.frequency.value = 2000;
-    windLPF.Q.value = 2.0;
-
-    windGain = ctx.createGain();
-    windGain.gain.value = 0;
-
-    windNoiseSource.connect(windHPF);
-    windHPF.connect(windLPF);
-    windLPF.connect(windGain);
-    windGain.connect(masterGain);
-    windNoiseSource.start();
 
     // ── Ocean waves: 4-layer synthesis (close, far, rumble, foam) ──
     // Technique: filtered noise with asymmetric LFO amplitude modulation
@@ -491,12 +466,6 @@ export function createShipAudio() {
     const splashT = Math.max(0, (t - 0.2) / 0.8); // kicks in at 20% speed
     splashFilter.frequency.setTargetAtTime(1500 + splashT * 3000, now, smooth);
     splashGain.gain.setTargetAtTime(splashT * 0.04, now, smooth);
-
-    // Wind whistle: only during boost
-    const windT = Math.max(0, boost);
-    windHPF.frequency.setTargetAtTime(600 + windT * 1200, now, smooth);
-    windLPF.frequency.setTargetAtTime(1500 + windT * 2500, now, smooth);
-    windGain.gain.setTargetAtTime(windT * 0.035, now, smooth);
   }
 
   function setVolume(v) {

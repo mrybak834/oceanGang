@@ -987,8 +987,8 @@ export function createBoat(scene) {
     return person;
   }
 
-  // True Osmodius at the helm (facing bow = -Z = Math.PI)
-  const trueOsmodius = registerEditable('True Osmodius', createSailor(0, 1.95, Math.PI, {
+  // True Osmodius at the helm (facing bow = -Z = Math.PI), behind the wheel
+  const trueOsmodius = registerEditable('True Osmodius', createSailor(0, 2.3, Math.PI, {
     hatType: 'noble',
     hatColor: 0x17131f,
     plumeColor: 0x8c1c13,
