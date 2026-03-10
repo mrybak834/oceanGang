@@ -56,7 +56,7 @@ async function getFontPitch(name, pitch, ac) {
   return bufferCache[key];
 }
 
-async function getFontBufferSource(name, value, ac) {
+async function getFontBufferSource(names, value, ac) {
   let { note = 'c3', freq } = value;
   let midi;
   if (freq) midi = freqToMidi(freq);
@@ -64,17 +64,28 @@ async function getFontBufferSource(name, value, ac) {
   else if (typeof note === 'number') midi = note;
   else throw new Error(`unexpected note type "${typeof note}"`);
 
-  const { buffer, zone } = await getFontPitch(name, midi, ac);
-  const src = ac.createBufferSource();
-  src.buffer = buffer;
-  const baseDetune = zone.originalPitch - 100 * zone.coarseTune - zone.fineTune;
-  src.playbackRate.value = Math.pow(2, (100 * midi - baseDetune) / 1200);
-  if (zone.loopStart > 1 && zone.loopStart < zone.loopEnd) {
-    src.loop = true;
-    src.loopStart = zone.loopStart / zone.sampleRate;
-    src.loopEnd = zone.loopEnd / zone.sampleRate;
+  const fontNames = Array.isArray(names) ? names : [names];
+  let lastError = null;
+
+  for (const name of fontNames) {
+    try {
+      const { buffer, zone } = await getFontPitch(name, midi, ac);
+      const src = ac.createBufferSource();
+      src.buffer = buffer;
+      const baseDetune = zone.originalPitch - 100 * zone.coarseTune - zone.fineTune;
+      src.playbackRate.value = Math.pow(2, (100 * midi - baseDetune) / 1200);
+      if (zone.loopStart > 1 && zone.loopStart < zone.loopEnd) {
+        src.loop = true;
+        src.loopStart = zone.loopStart / zone.sampleRate;
+        src.loopEnd = zone.loopEnd / zone.sampleRate;
+      }
+      return src;
+    } catch (err) {
+      lastError = err;
+    }
   }
-  return src;
+
+  throw lastError || new Error(`no playable soundfont found for pitch ${midi}`);
 }
 
 export function registerSoundfontsLocal() {
@@ -87,9 +98,9 @@ export function registerSoundfontsLocal() {
         ]);
         const { duration } = value;
         const n = getSoundIndex(value.n, fonts.length);
-        const font = fonts[n];
+        const orderedFonts = [fonts[n], ...fonts.filter((_, i) => i !== n)];
         const ctx = getAudioContext();
-        const bufferSource = await getFontBufferSource(font, value, ctx);
+        const bufferSource = await getFontBufferSource(orderedFonts, value, ctx);
         bufferSource.start(time);
         const envGain = ctx.createGain();
         const node = bufferSource.connect(envGain);

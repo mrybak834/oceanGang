@@ -3,6 +3,9 @@ import { initStrudel, evaluate as strudelEvaluate, hush as strudelHush } from '@
 import '@strudel/repl';
 import { registerSoundfontsLocal } from './strudelSoundfonts.js';
 
+export const MUSIC_SCENE_SYNC_EVENT = 'oceangang:music-scene-sync';
+export const MUSIC_PLAYBACK_EVENT = 'oceangang:music-playback';
+
 export const SCENES = {
   'Calm Shores': `// gentle surf, drifting ocarina, warm pads
 setcps(0.25)
@@ -317,9 +320,10 @@ let mysteryPad = note("<[e3,g3,b3] [c3,e3,a3] [d3,f#3,a3] [b2,e3,g3]>")
   .lpf(perlin.range(300, 800).slow(16))
   .gain(0.12).room(0.8).roomsize(0.75)
 
-// Sparkle: sparse and constant, the same gentle shimmer throughout
-let sparkle = note("~ ~ b6 ~ ~ e7 ~ ~ g6 ~ ~ ~ d7 ~ a6 ~")
+// Sparkle: sparse deeper blips, warm and round
+let sparkle = note("~ ~ b5 ~ ~ e6 ~ ~ g5 ~ ~ ~ d6 ~ a5 ~")
   .s("gm_fx_crystal").slow(8)
+  .lpf(2500)
   .gain(0.05)
   .delay(0.5).delaytime(0.5).delayfeedback(0.55)
   .room(0.92)
@@ -538,7 +542,6 @@ export function initMusicPanel(shipAudio) {
   const editorWrap = document.getElementById('music-editor-wrap');
   const sceneSelect = document.getElementById('music-scene-select');
   const presetGrid = document.getElementById('music-preset-grid');
-  const gridBtn = document.getElementById('music-grid-btn');
   const musicVolSlider = document.getElementById('music-vol');
   const sfxVolSlider = document.getElementById('sfx-vol');
 
@@ -546,7 +549,6 @@ export function initMusicPanel(shipAudio) {
   let embeddedRepl = null;
   let replReadyPromise = null;
   let currentScene = null;
-  let gridMode = true; // start in grid mode
   let musicVolume = 1.0;
   let isPlaying = false;
   let isLoading = false;
@@ -562,6 +564,27 @@ export function initMusicPanel(shipAudio) {
     return code;
   }
 
+  function emitMusicSceneSync(sceneName, code, { source, playing } = {}) {
+    document.dispatchEvent(new CustomEvent(MUSIC_SCENE_SYNC_EVENT, {
+      detail: {
+        sceneName,
+        code,
+        source: source || 'music-panel',
+        playing: !!playing,
+      },
+    }));
+  }
+
+  function emitPlaybackState(sceneName, playing, source = 'music-panel') {
+    document.dispatchEvent(new CustomEvent(MUSIC_PLAYBACK_EVENT, {
+      detail: {
+        sceneName,
+        playing,
+        source,
+      },
+    }));
+  }
+
   function persistEditorDraft() {
     if (embeddedRepl?.editor && currentScene) {
       sceneDrafts[currentScene] = embeddedRepl.editor.code;
@@ -573,6 +596,8 @@ export function initMusicPanel(shipAudio) {
     sceneDrafts[currentScene] = code;
     isPlaying = playing;
     isLoading = false;
+    emitMusicSceneSync(currentScene, code, { source: 'repl', playing });
+    emitPlaybackState(currentScene, playing, 'repl');
     updateCardStates();
   }
 
@@ -595,6 +620,8 @@ export function initMusicPanel(shipAudio) {
         sceneDrafts[currentScene] = code;
         isPlaying = false;
         isLoading = false;
+        emitMusicSceneSync(currentScene, code, { source: 'repl-error', playing: false });
+        emitPlaybackState(currentScene, false, 'repl-error');
         updateCardStates();
         throw err;
       }
@@ -703,6 +730,7 @@ export function initMusicPanel(shipAudio) {
 
     if (currentScene === name && isPlaying) {
       strudelStop();
+      emitPlaybackState(currentScene, false, 'grid');
       isPlaying = false;
       currentScene = null;
       updateCardStates();
@@ -711,6 +739,7 @@ export function initMusicPanel(shipAudio) {
 
     currentScene = name;
     sceneSelect.value = name;
+    loadScene(name);
     isLoading = true;
     isPlaying = false;
     updateCardStates();
@@ -719,44 +748,27 @@ export function initMusicPanel(shipAudio) {
       let code = getSceneCode(name, { applyVolume: true });
       await strudelPlay(code);
       isPlaying = true;
+      emitMusicSceneSync(name, sceneDrafts[name] || SCENES[name], { source: 'grid', playing: true });
+      emitPlaybackState(name, true, 'grid');
     } catch (err) {
       console.error('Strudel error:', err);
       isPlaying = false;
+      emitPlaybackState(name, false, 'grid-error');
       currentScene = null;
     }
     isLoading = false;
     updateCardStates();
   }
 
-  // ── Show/hide grid vs editor ──
-  function showGrid() {
-    gridMode = true;
-    persistEditorDraft();
-    stopEmbeddedRepl();
-    presetGrid.classList.remove('grid-hidden');
-    editorWrap.style.display = 'none';
-    gridBtn.classList.add('active');
-    updateCardStates();
-  }
-
-  async function showEditor(keepAudio) {
-    gridMode = false;
-    if (!keepAudio && isPlaying) {
-      strudelStop();
-      isPlaying = false;
-    }
-    presetGrid.classList.add('grid-hidden');
-    editorWrap.classList.remove('backdrop');
-    editorWrap.style.display = '';
-    gridBtn.classList.remove('active');
-    const sceneName = currentScene || sceneSelect.value;
-    if (sceneName) await loadScene(sceneName);
-  }
-
   buildGrid();
-  showGrid();
+  const initialScene = sceneNames.includes('Treasure Map') ? 'Treasure Map' : sceneNames[0];
+  if (initialScene) {
+    currentScene = initialScene;
+    sceneSelect.value = initialScene;
+    loadScene(initialScene);
+  }
 
-  // ── Load scene into iframe ──
+  // ── Load scene into embedded REPL ──
   async function loadScene(name) {
     persistEditorDraft();
     currentScene = name;
@@ -768,17 +780,7 @@ export function initMusicPanel(shipAudio) {
 
   // ── Scene selector ──
   sceneSelect.addEventListener('change', (e) => {
-    if (gridMode) {
-      toggleScene(e.target.value);
-    } else {
-      loadScene(e.target.value);
-    }
-  });
-
-  // ── Grid toggle button ──
-  gridBtn.addEventListener('click', () => {
-    if (gridMode) showEditor();
-    else showGrid();
+    loadScene(e.target.value);
   });
 
   // ── Volume sliders ──
@@ -791,6 +793,8 @@ export function initMusicPanel(shipAudio) {
     if (currentScene && isPlaying && strudelReady) {
       let code = getSceneCode(currentScene, { applyVolume: true });
       await strudelPlay(code);
+      emitMusicSceneSync(currentScene, sceneDrafts[currentScene] || SCENES[currentScene], { source: 'grid-volume', playing: true });
+      emitPlaybackState(currentScene, true, 'grid-volume');
     }
   });
 
