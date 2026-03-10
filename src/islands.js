@@ -128,12 +128,13 @@ export function createIslands(scene) {
       const noiseSeed = (rand() * 0x7fffffff) | 0;
       const group = buildIsland(radius, rand, noiseSeed);
       group.position.set(x, 0, z);
+      group.userData.r = radius;
       scene.add(group);
       islands.push(group);
     }
   }
 
-  return islands;
+  return { groups: islands, islandData: positions };
 }
 
 // ── Build a single island ────────────────────────────────────────────────

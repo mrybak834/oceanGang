@@ -18,7 +18,7 @@ export function createOcean(scene, renderer) {
     ),
     sunDirection: new THREE.Vector3(),
     sunColor: 0xffffff,
-    waterColor: 0x003366,
+    waterColor: 0x006699,
     distortionScale: 3.7,
     alpha: 1.0,
     fog: scene.fog !== undefined,
@@ -32,13 +32,13 @@ export function createOcean(scene, renderer) {
   scene.add(sky);
 
   const skyUniforms = sky.material.uniforms;
-  skyUniforms['turbidity'].value = 3;
-  skyUniforms['rayleigh'].value = 1.2;
-  skyUniforms['mieCoefficient'].value = 0.002;
-  skyUniforms['mieDirectionalG'].value = 0.75;
+  skyUniforms['turbidity'].value = 2;
+  skyUniforms['rayleigh'].value = 1.5;
+  skyUniforms['mieCoefficient'].value = 0.005;
+  skyUniforms['mieDirectionalG'].value = 0.8;
 
-  // Sun position — higher sun for even, warm lighting
-  const parameters = { elevation: 50, azimuth: 200 };
+  // Sun position — bright sunny day
+  const parameters = { elevation: 35, azimuth: 180 };
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   const sceneEnv = new THREE.Scene();
   let renderTarget;

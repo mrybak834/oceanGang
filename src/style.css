@@ -264,3 +264,271 @@ canvas {
   border-left: 2px solid rgba(255,255,255,0.25);
   border-bottom: 2px solid rgba(255,255,255,0.25);
 }
+
+/* ─── Trading Menu ─── */
+
+.trade-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  transition: opacity 0.25s ease;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.trade-overlay.trade-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.trade-card {
+  background: rgba(12, 16, 34, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 24px 30px;
+  min-width: 320px;
+  max-width: 400px;
+  color: #ddd;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+}
+
+.trade-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.trade-island-name {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.trade-close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+.trade-close:hover {
+  color: #fff;
+}
+
+.trade-type {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 6px;
+}
+
+.trade-level {
+  font-size: 14px;
+  font-weight: 600;
+  color: #8bc8ff;
+  margin-bottom: 4px;
+}
+
+.trade-production {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 16px;
+}
+
+.trade-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.trade-invest-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #2a7adb, #1b5aad);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.trade-invest-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #3a8aeb, #2b6abd);
+}
+.trade-invest-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.trade-cost {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+}
+
+.trade-inventory {
+  display: flex;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.mat-item {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+}
+.mat-item b {
+  color: #ccc;
+  font-weight: 600;
+}
+
+/* ─── Resource Tracker ─── */
+
+.resource-tracker {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 15;
+  background: rgba(8, 10, 24, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  pointer-events: none;
+  min-width: 160px;
+}
+
+.rt-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+}
+
+.rt-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.rt-icon-crate {
+  background: #cd853f;
+}
+
+.rt-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  white-space: nowrap;
+}
+
+.rt-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+}
+
+.rt-rate {
+  font-size: 10px;
+  color: #6cbf6c;
+  text-align: right;
+  min-width: 36px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+  margin: 5px 0;
+}
+
+.rt-islands-row {
+  grid-template-columns: 1fr auto;
+}
+.rt-islands-row .rt-label {
+  color: rgba(255,255,255,0.4);
+  font-size: 11px;
+}
+.rt-islands-row .rt-value {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  font-weight: 400;
+}
+
+/* ─── Performance Tracker ─── */
+
+.perf-panel {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 200;
+  background: rgba(8, 10, 24, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-width: 180px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.perf-panel.perf-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+}
+
+.perf-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.perf-hint {
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.3);
+}
+
+.perf-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+}
+
+.perf-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+}
+
+.perf-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-gpu {
+  font-weight: 400;
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

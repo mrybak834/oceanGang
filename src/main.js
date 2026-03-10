@@ -8,10 +8,12 @@ import { createWakeSystem } from './wake.js';
 import { initMusicPanel } from './music.js';
 import { createShipAudio } from './shipAudio.js';
 import { initSkySettings } from './skySettings.js';
+import { createTradingSystem } from './trading.js';
+import { createPerfTracker } from './perfTracker.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
-let shipAudio, ocean;
+let shipAudio, ocean, tradingSystem, perfTracker;
 
 const clock = new THREE.Clock();
 
@@ -54,12 +56,12 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setAnimationLoop(animate);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.5;
+  renderer.toneMappingExposure = 0.8;
   document.body.appendChild(renderer.domElement);
 
   // Scene
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0xaaddff, 0.00005);
+  scene.fog = new THREE.FogExp2(0x87ceeb, 0.00003);
 
   // Camera
   camera = new THREE.PerspectiveCamera(
@@ -75,10 +77,10 @@ function init() {
   windEffect = createWindEffect(scene);
 
   // Lighting
-  const ambientLight = new THREE.AmbientLight(0x445566, 0.4);
+  const ambientLight = new THREE.AmbientLight(0x6688aa, 0.6);
   scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
+  const directionalLight = new THREE.DirectionalLight(0xfff4e5, 2.0);
   directionalLight.position.set(1, 3, 1);
   scene.add(directionalLight);
 
@@ -91,7 +93,7 @@ const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
   boatController = createBoatController();
 
   // Islands
-  createIslands(scene);
+  const islandsResult = createIslands(scene);
 
   // Wake / spray
   wakeSystem = createWakeSystem(scene);
@@ -136,11 +138,17 @@ const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
   // Music panel (Strudel)
   initMusicPanel();
 
+  // Trading system (island barriers + trading menu)
+  tradingSystem = createTradingSystem(scene, islandsResult.islandData, crateManager);
+
   // Ship water audio (Web Audio synthesis tied to boat speed)
   shipAudio = createShipAudio();
 
   // Sky/ocean settings popup (G key)
   initSkySettings(ocean, renderer);
+
+  // Performance tracker (P key)
+  perfTracker = createPerfTracker(renderer);
 }
 
 function onWindowResize() {
@@ -168,13 +176,18 @@ function animate() {
   // Wind boost visual
   windEffect.update(time, boatController.boostAmount, boat, camera);
 
+  // Island barriers + trading
+  tradingSystem.update(boat, delta);
+
   // Ship water audio
   shipAudio.update(boatController.velocity.forward, boatController.boostAmount);
 
   // Camera follow
   updateCamera(delta);
 
+  perfTracker.begin();
   renderer.render(scene, camera);
+  perfTracker.end(delta);
 }
 
 function updateCamera(delta) {

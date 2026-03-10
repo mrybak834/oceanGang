@@ -112,5 +112,14 @@ export function createCrateManager(scene) {
     return collected;
   }
 
-  return { init, update };
+  function getScore() { return score; }
+
+  function spendCrates(n) {
+    if (score < n) return false;
+    score -= n;
+    scoreEl.textContent = `Crates: ${score}`;
+    return true;
+  }
+
+  return { init, update, getScore, spendCrates };
 }
