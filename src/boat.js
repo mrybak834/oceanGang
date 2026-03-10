@@ -843,6 +843,27 @@ export function createBoatController() {
   let visualRoll = 0;     // cosmetic heel angle
   let boostAmount = 0;    // smooth 0-1 ramp for boost visual
 
+  // Dolphin jump state
+  let isJumping = false;
+  let jumpVelocity = 0;
+  let jumpY = 0;
+  let isSubmerged = false;
+  let submersionY = 0;
+  let jumpCooldown = 0;
+  let jumpQueued = false;
+  const jumpLaunchSpeed = 35;
+  const jumpGravityAccel = 30;
+  const maxSubmersionDepth = -4;
+  const submersionRecoveryRate = 5;
+
+  // Splash particle system
+  let splashParticles = null;
+  let splashVelocities = null;
+  let splashActive = false;
+  let splashElapsed = 0;
+  const SPLASH_COUNT = 120;
+  const SPLASH_LIFE = 1.5;
+
   // Tuning — arcade boat feel
   const thrust = 80;              // forward force (ramps to full speed in ~2s)
   const reverseThrust = 40;     // backward force
@@ -858,6 +879,10 @@ export function createBoatController() {
 
   window.addEventListener('keydown', (e) => {
     keys[e.key.toLowerCase()] = true;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      jumpQueued = true;
+    }
   });
   window.addEventListener('keyup', (e) => {
     keys[e.key.toLowerCase()] = false;
@@ -926,13 +951,54 @@ export function createBoatController() {
     const targetRoll = -yawRate / maxTurnRate * rollMax;
     visualRoll += (targetRoll - visualRoll) * Math.min(1, rollSmooth * dt);
 
+    // --- Dolphin Jump ---
+    if (jumpQueued && !isJumping && !isSubmerged && jumpCooldown <= 0) {
+      isJumping = true;
+      jumpVelocity = jumpLaunchSpeed;
+      jumpY = 0;
+    }
+    jumpQueued = false;
+
+    if (isJumping) {
+      jumpVelocity -= jumpGravityAccel * dt;
+      jumpY += jumpVelocity * dt;
+      if (jumpY <= 0 && jumpVelocity < 0) {
+        isJumping = false;
+        jumpY = 0;
+        isSubmerged = true;
+        const impactRatio = Math.min(Math.abs(jumpVelocity) / jumpLaunchSpeed, 1);
+        submersionY = maxSubmersionDepth * impactRatio;
+        jumpCooldown = 1.2;
+        triggerSplash(boat);
+      }
+    }
+
+    if (isSubmerged) {
+      submersionY += submersionRecoveryRate * dt;
+      if (submersionY >= 0) {
+        submersionY = 0;
+        isSubmerged = false;
+      }
+    }
+    if (jumpCooldown > 0) jumpCooldown -= dt;
+
     // --- Wave bobbing ---
     const waveY = Math.sin(time * 1.5) * 0.4 + Math.sin(time * 2.3) * 0.2;
-    boat.position.y = baseY + waveY;
+    const waveFactor = isJumping ? 0 : (isSubmerged ? 0.3 : 1);
+    boat.position.y = baseY + waveY * waveFactor + jumpY + submersionY;
 
-    // Combine wave tilt with visual heel
-    boat.rotation.z = visualRoll + Math.sin(time * 1.8) * 0.03;
-    boat.rotation.x = Math.sin(time * 1.2) * 0.02;
+    // Combine wave tilt with visual heel + jump pitch
+    let jumpPitch = 0;
+    if (isJumping) {
+      jumpPitch = -(jumpVelocity / jumpLaunchSpeed) * 0.45;
+    } else if (isSubmerged) {
+      jumpPitch = submersionY * 0.08;
+    }
+    boat.rotation.z = visualRoll + Math.sin(time * 1.8) * 0.03 * waveFactor;
+    boat.rotation.x = Math.sin(time * 1.2) * 0.02 * waveFactor + jumpPitch;
+
+    // Update splash particles
+    updateSplash(dt);
 
     // Expose speed for other systems (wind effect etc.)
     boat.userData._windSpeed = speed;
@@ -994,6 +1060,82 @@ export function createBoatController() {
     }
 
     return { forward: speed, turn: yawRate };
+  }
+
+  function triggerSplash(boat) {
+    const scene = boat.parent;
+    if (!splashParticles) {
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(SPLASH_COUNT * 3);
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.PointsMaterial({
+        color: 0xccddff,
+        size: 2.5,
+        transparent: true,
+        opacity: 0.9,
+        sizeAttenuation: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      splashParticles = new THREE.Points(geo, mat);
+      splashVelocities = new Float32Array(SPLASH_COUNT * 3);
+      scene.add(splashParticles);
+    }
+
+    const pos = splashParticles.geometry.attributes.position.array;
+    const bx = boat.position.x, by = boat.position.y, bz = boat.position.z;
+
+    for (let i = 0; i < SPLASH_COUNT; i++) {
+      const i3 = i * 3;
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * 8;
+      pos[i3] = bx + Math.cos(angle) * radius;
+      pos[i3 + 1] = by;
+      pos[i3 + 2] = bz + Math.sin(angle) * radius;
+
+      const spd = 5 + Math.random() * 18;
+      splashVelocities[i3] = Math.cos(angle) * spd * 0.7;
+      splashVelocities[i3 + 1] = 8 + Math.random() * 20;
+      splashVelocities[i3 + 2] = Math.sin(angle) * spd * 0.7;
+    }
+
+    splashParticles.geometry.attributes.position.needsUpdate = true;
+    splashParticles.visible = true;
+    splashActive = true;
+    splashElapsed = 0;
+  }
+
+  function updateSplash(dt) {
+    if (!splashActive || !splashParticles) return;
+
+    splashElapsed += dt;
+    if (splashElapsed > SPLASH_LIFE) {
+      splashActive = false;
+      splashParticles.visible = false;
+      return;
+    }
+
+    const progress = splashElapsed / SPLASH_LIFE;
+    const pos = splashParticles.geometry.attributes.position.array;
+
+    for (let i = 0; i < SPLASH_COUNT; i++) {
+      const i3 = i * 3;
+      pos[i3] += splashVelocities[i3] * dt;
+      pos[i3 + 1] += splashVelocities[i3 + 1] * dt;
+      pos[i3 + 2] += splashVelocities[i3 + 2] * dt;
+
+      splashVelocities[i3 + 1] -= 25 * dt;
+
+      if (pos[i3 + 1] < 0) {
+        pos[i3 + 1] = 0;
+        splashVelocities[i3 + 1] = 0;
+        splashVelocities[i3] *= 0.9;
+        splashVelocities[i3 + 2] *= 0.9;
+      }
+    }
+
+    splashParticles.geometry.attributes.position.needsUpdate = true;
+    splashParticles.material.opacity = 0.9 * (1 - progress * progress);
   }
 
   return {

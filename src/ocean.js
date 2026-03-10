@@ -120,5 +120,5 @@ export function createOcean(scene, renderer) {
   }
   scene.add(clouds);
 
-  return { water, sky, sun, clouds, updateSun };
+  return { water, sky, sun, clouds, updateSun, parameters, skyUniforms };
 }

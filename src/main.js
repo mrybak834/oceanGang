@@ -5,9 +5,13 @@ import { createCrateManager } from './crates.js';
 import { createIslands } from './islands.js';
 import { createWindEffect } from './windEffect.js';
 import { createWakeSystem } from './wake.js';
+import { initMusicPanel } from './music.js';
+import { createShipAudio } from './shipAudio.js';
+import { initSkySettings } from './skySettings.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
+let shipAudio, ocean;
 
 const clock = new THREE.Clock();
 
@@ -79,7 +83,7 @@ const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
   scene.add(directionalLight);
 
   // Ocean + Sky
-  const ocean = createOcean(scene, renderer);
+  ocean = createOcean(scene, renderer);
   water = ocean.water;
 
   // Boat
@@ -128,6 +132,15 @@ const directionalLight = new THREE.DirectionalLight(0xffeedd, 1.5);
 
   // Resize
   window.addEventListener('resize', onWindowResize);
+
+  // Music panel (Strudel)
+  initMusicPanel();
+
+  // Ship water audio (Web Audio synthesis tied to boat speed)
+  shipAudio = createShipAudio();
+
+  // Sky/ocean settings popup (G key)
+  initSkySettings(ocean, renderer);
 }
 
 function onWindowResize() {
@@ -154,6 +167,9 @@ function animate() {
 
   // Wind boost visual
   windEffect.update(time, boatController.boostAmount, boat, camera);
+
+  // Ship water audio
+  shipAudio.update(boatController.velocity.forward, boatController.boostAmount);
 
   // Camera follow
   updateCamera(delta);

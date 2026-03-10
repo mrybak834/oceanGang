@@ -41,3 +41,226 @@ canvas {
   font-size: 16px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
 }
+
+/* ─── Strudel Music Panel ─── */
+
+.music-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 620px;
+  height: 460px;
+  min-width: 360px;
+  min-height: 260px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.08);
+  background: #1a1a2e;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.music-panel.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px) scale(0.97);
+}
+
+.music-panel.faded {
+  opacity: 0.15;
+  transition: opacity 0.4s ease;
+}
+.music-panel.faded:hover {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.music-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 10px;
+  background: linear-gradient(135deg, #16213e, #0f3460);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.music-titlebar:active {
+  cursor: grabbing;
+}
+
+.music-title {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  letter-spacing: 0.3px;
+}
+
+.music-titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.music-scene-select {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.music-scene-select:hover {
+  background: rgba(255,255,255,0.18);
+}
+.music-scene-select option {
+  background: #1a1a2e;
+  color: #fff;
+}
+
+.music-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  cursor: pointer;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.music-btn-close {
+  background: rgba(255, 80, 80, 0.7);
+}
+.music-btn-close:hover {
+  background: rgba(255, 80, 80, 1);
+}
+
+.music-editor-wrap {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.music-editor-wrap iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* ─── Sky & Ocean Settings Panel ─── */
+
+.sky-settings {
+  position: fixed;
+  top: 60px;
+  left: 20px;
+  width: 280px;
+  z-index: 200;
+  background: rgba(10, 12, 28, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #ddd;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.sky-settings.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
+}
+
+.sky-settings-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sky-settings-hint {
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.35);
+}
+
+.sky-row {
+  display: grid;
+  grid-template-columns: 1fr 110px 44px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.sky-row label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.65);
+  white-space: nowrap;
+}
+
+.sky-row input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.sky-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #5b9bd5;
+  border: none;
+  cursor: pointer;
+}
+
+.sky-val {
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Resize handle — bottom-left corner */
+.music-resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
+  z-index: 210;
+}
+.music-resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  width: 8px;
+  height: 8px;
+  border-left: 2px solid rgba(255,255,255,0.25);
+  border-bottom: 2px solid rgba(255,255,255,0.25);
+}
