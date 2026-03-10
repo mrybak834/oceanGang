@@ -14,10 +14,11 @@ import { createPerfTracker } from './perfTracker.js';
 import { createTitleScreen } from './titleScreen.js';
 import { createInstrumentRegistry } from './instruments.js';
 import { createCompass } from './compass.js';
+import { createCreatures } from './creatures.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
-let shipAudio, ocean, tradingSystem, perfTracker, instrumentRegistry, compass;
+let shipAudio, ocean, tradingSystem, perfTracker, instrumentRegistry, compass, creatures;
 let compassCamera, compassRenderer;
 let islandGroups = [], islandPositions = [];
 let wasJumping = false;
@@ -121,6 +122,10 @@ function init() {
   crateManager = createCrateManager(scene);
   crateManager.init(boat.position);
 
+  // Underwater creatures
+  creatures = createCreatures(scene);
+  creatures.init(boat.position);
+
   // Zoom (scroll wheel)
   window.addEventListener('wheel', (e) => {
     zoomLevel += e.deltaY * 0.001;
@@ -136,8 +141,12 @@ function init() {
   });
   window.addEventListener('mousemove', (e) => {
     if (!isMouseDragging) return;
-    cameraYaw -= e.movementX * 0.005;
-    cameraPitch = Math.max(pitchMin, Math.min(pitchMax, cameraPitch - e.movementY * 0.005));
+    if (shipEditor?.editorActive) {
+      shipEditor.handleMouseMove(e.movementX, e.movementY);
+    } else {
+      cameraYaw -= e.movementX * 0.005;
+      cameraPitch = Math.max(pitchMin, Math.min(pitchMax, cameraPitch - e.movementY * 0.005));
+    }
   });
   // Prevent context menu on right-click so right-drag works
   window.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -164,7 +173,7 @@ function init() {
   });
 
   // Music panel (Strudel) — needs shipAudio for SFX volume slider
-  initMusicPanel(shipAudio);
+  initMusicPanel(shipAudio, instrumentRegistry);
 
   // Trading system (island barriers + trading menu)
   tradingSystem = createTradingSystem(scene, islandsResult.islandData, crateManager, instrumentRegistry);
@@ -199,9 +208,11 @@ function animate() {
 
   perfTracker.begin();
 
-  // Update boat
+  // Update boat (skip in editor mode — WASD controls camera instead)
   perfTracker.markStart('boat');
-  boatController.update(boat, delta, time);
+  if (!shipEditor?.editorActive) {
+    boatController.update(boat, delta, time);
+  }
   perfTracker.markEnd('boat');
 
   // Update water time
@@ -212,6 +223,11 @@ function animate() {
   const crateCollected = crateManager.update(boat.position, time);
   perfTracker.markEnd('crates');
   if (crateCollected) perfTracker.logEvent('crate_collected', { score: crateManager.getScore() });
+
+  // Underwater creatures
+  perfTracker.markStart('creatures');
+  creatures.update(boat.position, time, delta);
+  perfTracker.markEnd('creatures');
 
   // Wake / spray
   perfTracker.markStart('wake');
@@ -239,7 +255,7 @@ function animate() {
 
   // Island barriers + trading
   perfTracker.markStart('trading');
-  tradingSystem.update(boat, delta, boatController);
+  tradingSystem.update(boat, delta, boatController, time);
   perfTracker.markEnd('trading');
 
   // Ship water audio
@@ -257,9 +273,13 @@ function animate() {
   // Compass + speed gauge
   compass.update(boat, boatController);
 
-  // Camera follow
+  // Camera follow / free camera in editor mode
   perfTracker.markStart('camera');
-  if (!shipEditor?.isDragging) updateCamera(delta);
+  if (shipEditor?.editorActive) {
+    shipEditor.updateFreeCamera(delta, boatController.keys);
+  } else if (!shipEditor?.isDragging) {
+    updateCamera(delta);
+  }
   perfTracker.markEnd('camera');
 
   if (shipEditor?.helper && shipEditor.selectedObject) {
@@ -436,7 +456,7 @@ function initShipEditor() {
     alignItems: 'center',
   });
   const titleHint = document.createElement('span');
-  titleHint.textContent = 'E to close';
+  titleHint.textContent = 'WASD fly · E close';
   Object.assign(titleHint.style, { fontSize: '11px', color: 'rgba(245,234,215,0.4)', fontWeight: 'normal' });
   title.appendChild(titleHint);
   panel.appendChild(title);
@@ -561,12 +581,21 @@ function initShipEditor() {
   helper.visible = false;
   scene.add(helper);
 
+  // ── Free camera state for editor mode ──
+  const freeCam = {
+    yaw: 0,
+    pitch: 0,
+    speed: 80,
+    fastSpeed: 240,
+  };
+
   const editor = {
     panel,
     transform,
     helper,
     selectedObject: null,
     isDragging: false,
+    editorActive: false,
   };
 
   // ── Selection logic ──
@@ -713,7 +742,13 @@ function initShipEditor() {
   // ── Toggle editor with E key ──
   function showEditor() {
     editorActive = true;
+    editor.editorActive = true;
     panel.style.display = '';
+    // Initialize free camera orientation from current camera
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    freeCam.yaw = Math.atan2(dir.x, dir.z);
+    freeCam.pitch = Math.asin(Math.max(-1, Math.min(1, dir.y)));
     if (locked && editor.selectedObject) {
       transformHelper.visible = true;
       transform.enabled = true;
@@ -721,14 +756,17 @@ function initShipEditor() {
     if (editor.selectedObject) {
       helper.visible = true;
     }
+    showCameraToast('Editor Mode — WASD to fly');
   }
 
   function hideEditor() {
     editorActive = false;
+    editor.editorActive = false;
     panel.style.display = 'none';
     deselect();
     transformHelper.visible = false;
     transform.enabled = false;
+    showCameraToast('Editor Off');
   }
 
   window.addEventListener('keydown', (e) => {
@@ -738,6 +776,44 @@ function initShipEditor() {
       else showEditor();
     }
   });
+
+  // ── Free camera update (called from animate loop) ──
+  editor.updateFreeCamera = function (delta, keys) {
+    if (!editorActive) return;
+    const dt = Math.min(delta, 0.05);
+    const moveSpeed = keys['shift'] ? freeCam.fastSpeed : freeCam.speed;
+
+    // Build direction vectors from yaw/pitch
+    const forward = new THREE.Vector3(
+      Math.sin(freeCam.yaw) * Math.cos(freeCam.pitch),
+      Math.sin(freeCam.pitch),
+      Math.cos(freeCam.yaw) * Math.cos(freeCam.pitch)
+    );
+    const right = new THREE.Vector3(
+      Math.cos(freeCam.yaw), 0, -Math.sin(freeCam.yaw)
+    );
+    const up = new THREE.Vector3(0, 1, 0);
+
+    // WASD movement
+    if (keys['w'] || keys['arrowup']) camera.position.addScaledVector(forward, moveSpeed * dt);
+    if (keys['s'] || keys['arrowdown']) camera.position.addScaledVector(forward, -moveSpeed * dt);
+    if (keys['a'] || keys['arrowleft']) camera.position.addScaledVector(right, -moveSpeed * dt);
+    if (keys['d'] || keys['arrowright']) camera.position.addScaledVector(right, moveSpeed * dt);
+    if (keys[' ']) camera.position.addScaledVector(up, moveSpeed * dt);
+    if (keys['control']) camera.position.addScaledVector(up, -moveSpeed * dt);
+
+    // Apply look direction
+    const lookTarget = camera.position.clone().add(forward);
+    camera.lookAt(lookTarget);
+  };
+
+  // ── Mouse look for editor free camera ──
+  editor.handleMouseMove = function (movementX, movementY) {
+    if (!editorActive) return;
+    freeCam.yaw -= movementX * 0.003;
+    freeCam.pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05,
+      freeCam.pitch - movementY * 0.003));
+  };
 
   // Block game input while interacting with panel
   panel.addEventListener('keydown', (e) => { e.stopPropagation(); });

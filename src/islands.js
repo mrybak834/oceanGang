@@ -104,13 +104,13 @@ export function createIslands(scene) {
   // ── Starting island — straight ahead from spawn ──
   {
     const sx = 0, sz = -280, sRadius = 40;
-    positions.push({ x: sx, z: sz, r: sRadius });
     const noiseSeed = (rand() * 0x7fffffff) | 0;
     const group = buildIsland(sRadius, rand, noiseSeed);
     group.position.set(sx, 0, sz);
     group.userData.r = sRadius;
     scene.add(group);
     islands.push(group);
+    positions.push({ x: sx, z: sz, r: sRadius, group });
   }
 
   function tooClose(x, z, minGap) {
@@ -134,8 +134,6 @@ export function createIslands(scene) {
         attempts++;
       } while (tooClose(x, z, radius + 80) && attempts < 50);
 
-      positions.push({ x, z, r: radius });
-
       // Each island gets its own noise seed
       const noiseSeed = (rand() * 0x7fffffff) | 0;
       const group = buildIsland(radius, rand, noiseSeed);
@@ -143,6 +141,7 @@ export function createIslands(scene) {
       group.userData.r = radius;
       scene.add(group);
       islands.push(group);
+      positions.push({ x, z, r: radius, group });
     }
   }
 
@@ -208,6 +207,8 @@ function buildIsland(radius, rand, noiseSeed) {
     heights[i] = h;
     pos.setY(i, h);
   }
+
+  group.userData.sampleHeight = (x, z) => sampleHeight(x, z, radius, peakHeight, perm);
 
   geo.computeVertexNormals();
 

@@ -121,6 +121,54 @@ function buildCost(index, complexity) {
   return { Iron: Math.round(baseCost * 0.6), Gold: baseCost };
 }
 
+// ── Available sounds for swapping ──
+export const SOUND_OPTIONS = [
+  { value: 'sine', label: 'Sine', group: 'Synth' },
+  { value: 'triangle', label: 'Triangle', group: 'Synth' },
+  { value: 'sawtooth', label: 'Sawtooth', group: 'Synth' },
+  { value: 'square', label: 'Square', group: 'Synth' },
+  { value: 'gm_pad_warm', label: 'Warm Pad', group: 'Pad' },
+  { value: 'gm_pad_halo', label: 'Halo', group: 'Pad' },
+  { value: 'gm_pad_choir', label: 'Choir', group: 'Pad' },
+  { value: 'gm_fx_crystal', label: 'Crystal', group: 'Bell' },
+  { value: 'gm_celesta', label: 'Celesta', group: 'Bell' },
+  { value: 'gm_music_box', label: 'Music Box', group: 'Bell' },
+  { value: 'gm_vibraphone', label: 'Vibes', group: 'Bell' },
+  { value: 'gm_marimba', label: 'Marimba', group: 'Bell' },
+  { value: 'gm_acoustic_guitar_nylon', label: 'Nylon Guitar', group: 'Pluck' },
+  { value: 'gm_acoustic_guitar_steel', label: 'Steel Guitar', group: 'Pluck' },
+  { value: 'gm_flute', label: 'Flute', group: 'Wind' },
+  { value: 'gm_ocarina', label: 'Ocarina', group: 'Wind' },
+  { value: 'brown', label: 'Brown Noise', group: 'Noise' },
+  { value: 'pink', label: 'Pink Noise', group: 'Noise' },
+  { value: 'white', label: 'White Noise', group: 'Noise' },
+];
+
+// Replace the .s() or sound() call for a specific instrument variable
+export function applySoundSwap(code, varName, newSynth) {
+  const blockRe = new RegExp(
+    `(^let\\s+${varName}\\s*=\\s*[\\s\\S]*?)(?=^\\s*let\\s+\\w+\\s*=|^\\s*stack\\(|\\s*$)`,
+    'gm'
+  );
+  return code.replace(blockRe, (block) => {
+    // sound("...") at start of chain
+    if (/\bsound\(/.test(block)) {
+      return block.replace(/(\bsound\(\s*["'`])[^"'`]+(["'`]\s*\))/, `$1${newSynth}$2`);
+    }
+    // .s("...") method in chain
+    if (/\.s\(/.test(block)) {
+      return block.replace(/(\.s\(\s*["'`])[^"'`]+(["'`]\s*\))/, `$1${newSynth}$2`);
+    }
+    // standalone s("...") at start
+    return block.replace(/(\bs\(\s*["'`])[^"'`]+(["'`])/, `$1${newSynth}$2`);
+  });
+}
+
+// True if synthType is a simple name that can be swapped
+export function isSwappableSynth(synthType) {
+  return !!synthType && /^[\w]+$/.test(synthType);
+}
+
 export function parseStrudelPatch(code) {
   const stackOrder = extractStackOrder(code);
   const blocks = [...code.matchAll(/^let\s+(\w+)\s*=\s*([\s\S]*?)(?=^\s*let\s+\w+\s*=|^\s*stack\(|\s*$)/gm)];

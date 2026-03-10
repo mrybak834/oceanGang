@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { createDaoistPriest, updateDaoistPriest } from './daoistPriest.js';
+import { SOUND_OPTIONS, applySoundSwap, isSwappableSynth } from './patchParser.js';
 
 // ─── Island Trading System ───
 
@@ -17,6 +19,12 @@ const LEVELS = [
   { cost: 3,  rate: 1,   label: 'Level 1' },
   { cost: 6,  rate: 3,   label: 'Level 2' },
   { cost: 12, rate: 6,   label: 'Level 3' },
+];
+
+const DAOIST_PRIEST_LINES = [
+  'The tide brought you here before iron or gold did. That is usually a better beginning.',
+  'Build lightly. Listen to the wind before you command it, and the islands will answer with more than crates.',
+  'Take this harbor as a threshold. Trade if you must, but do not forget to look at the water until it speaks back.',
 ];
 
 function hashCoords(x, z) {
@@ -44,11 +52,15 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     x: d.x,
     z: d.z,
     r: d.r,
+    group: d.group,
     barrierR: d.r + BARRIER_BUFFER,
+    isTiny: d.r <= 22,
     type: ISLAND_TYPES[i % ISLAND_TYPES.length],
     sceneName: sceneNames[hashCoords(d.x, d.z) % sceneNames.length],
     level: 0,
     stored: 0, // accumulated materials
+    priest: null,
+    priestWalkOffset: Math.random() * Math.PI * 2,
   }));
 
   // ── Global materials inventory ──
@@ -80,6 +92,25 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
   overlay.className = 'trade-overlay trade-hidden';
   overlay.innerHTML = `
     <div class="trade-card">
+      <div class="trade-encounter trade-panel-hidden">
+        <div class="trade-encounter-stage">
+          <div class="trade-encounter-portrait">
+            <div class="trade-encounter-portrait-frame">
+              <div class="trade-encounter-portrait-render"></div>
+            </div>
+            <div class="trade-encounter-speaker">Wandering Daoist</div>
+          </div>
+          <div class="trade-encounter-copy">
+            <div class="trade-encounter-kicker">First Landing</div>
+            <div class="trade-encounter-title">A priest waits on the shore</div>
+            <div class="trade-encounter-island"></div>
+            <div class="trade-encounter-dialogue"></div>
+            <div class="trade-encounter-actions">
+              <button class="trade-encounter-next">Continue</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="trade-header">
         <span class="trade-island-name"></span>
         <button class="trade-close">&times;</button>
@@ -107,6 +138,12 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
   document.body.appendChild(overlay);
 
   const elName = overlay.querySelector('.trade-island-name');
+  const card = overlay.querySelector('.trade-card');
+  const encounterPanel = overlay.querySelector('.trade-encounter');
+  const encounterIslandEl = overlay.querySelector('.trade-encounter-island');
+  const encounterDialogueEl = overlay.querySelector('.trade-encounter-dialogue');
+  const encounterNextBtn = overlay.querySelector('.trade-encounter-next');
+  const encounterPortraitEl = overlay.querySelector('.trade-encounter-portrait-render');
   const elType = overlay.querySelector('.trade-type');
   const elLevel = overlay.querySelector('.trade-level');
   const elProd = overlay.querySelector('.trade-production');
@@ -133,12 +170,57 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     <div class="rt-row"><span class="rt-icon" style="background:#daa520"></span><span class="rt-label">Gold</span><span class="rt-value" data-res="Gold">0</span><span class="rt-rate" data-rate="Gold"></span></div>
     <div class="rt-divider"></div>
     <div class="rt-row rt-islands-row"><span class="rt-label">Islands</span><span class="rt-value" data-res="islands">0 / ${islands.length}</span></div>
+    <div class="rt-divider"></div>
+    <button class="rt-cheat-btn">∞ Resources</button>
   `;
   document.body.appendChild(tracker);
+
+  tracker.querySelector('.rt-cheat-btn').addEventListener('click', () => {
+    materials.Wood = 9999;
+    materials.Stone = 9999;
+    materials.Iron = 9999;
+    materials.Gold = 9999;
+    hudTimer = HUD_INTERVAL;
+    refreshHud(0.01);
+    if (menuOpen) refreshMenu();
+  });
 
   let menuOpen = false;
   let activeIsland = null;
   let activeTab = 'industry';
+  let metDaoistPriest = false;
+  let encounterStep = 0;
+  let encounterActive = false;
+
+  const priestPreviewScene = new THREE.Scene();
+  const priestPreviewCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  priestPreviewCamera.position.set(0, 1.8, 7.4);
+  const priestPreviewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  priestPreviewRenderer.setPixelRatio(window.devicePixelRatio);
+  priestPreviewRenderer.setSize(280, 360);
+  Object.assign(priestPreviewRenderer.domElement.style, {
+    width: '100%',
+    height: '100%',
+    display: 'block',
+  });
+  encounterPortraitEl.appendChild(priestPreviewRenderer.domElement);
+
+  priestPreviewScene.add(new THREE.AmbientLight(0xe9dcc4, 1.8));
+  const priestKey = new THREE.DirectionalLight(0xfff3dd, 2.2);
+  priestKey.position.set(3, 5, 4);
+  priestPreviewScene.add(priestKey);
+  const priestRim = new THREE.DirectionalLight(0x7fc2ff, 1.3);
+  priestRim.position.set(-3, 2, -2);
+  priestPreviewScene.add(priestRim);
+  const priestStand = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.9, 2.2, 0.3, 32),
+    new THREE.MeshStandardMaterial({ color: 0x24140d, roughness: 0.92, metalness: 0.05 })
+  );
+  priestStand.position.y = -1.25;
+  priestPreviewScene.add(priestStand);
+  const priestPreviewModel = createDaoistPriest();
+  priestPreviewModel.position.y = -1.1;
+  priestPreviewScene.add(priestPreviewModel);
 
   // ── Block game input when menu is open ──
   overlay.addEventListener('keydown', e => e.stopPropagation());
@@ -165,10 +247,39 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     if (menuOpen) refreshMenu();
   });
 
+  function ensurePriestForIsland(isl) {
+    if (isl.priest) return;
+    const priest = createDaoistPriest();
+    priest.scale.setScalar(1.45);
+    const host = isl.group || scene;
+    host.add(priest);
+    isl.priest = priest;
+  }
+
+  function setEncounterState(active) {
+    encounterActive = active;
+    overlay.classList.toggle('trade-overlay-encounter', active);
+    encounterPanel.classList.toggle('trade-panel-hidden', !active);
+  }
+
+  function refreshEncounter() {
+    if (!activeIsland) return;
+    encounterIslandEl.textContent = `${activeIsland.type.name} Isle`;
+    encounterDialogueEl.textContent = DAOIST_PRIEST_LINES[encounterStep];
+    encounterNextBtn.textContent = encounterStep < DAOIST_PRIEST_LINES.length - 1 ? 'Continue' : 'Open Harbor Ledger';
+  }
+
   function openMenu(isl) {
     activeIsland = isl;
     menuOpen = true;
     overlay.classList.remove('trade-hidden');
+    const shouldMeetPriest = !metDaoistPriest && !isl.isTiny;
+    setEncounterState(shouldMeetPriest);
+    if (shouldMeetPriest) {
+      ensurePriestForIsland(isl);
+      encounterStep = 0;
+      refreshEncounter();
+    }
     setActiveTab(activeTab);
     refreshMenu();
   }
@@ -176,6 +287,8 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
   function closeMenu() {
     menuOpen = false;
     activeIsland = null;
+    setEncounterState(false);
+    card.classList.remove('trade-card-cinematic');
     overlay.classList.add('trade-hidden');
   }
 
@@ -195,6 +308,18 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     }
   });
 
+  encounterNextBtn.addEventListener('click', () => {
+    if (!encounterActive) return;
+    if (encounterStep < DAOIST_PRIEST_LINES.length - 1) {
+      encounterStep++;
+      refreshEncounter();
+      return;
+    }
+    metDaoistPriest = true;
+    setEncounterState(false);
+    refreshMenu();
+  });
+
   function refreshMenu() {
     const isl = activeIsland;
     if (!isl) return;
@@ -204,6 +329,7 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
 
     elName.textContent = isl.type.name;
     elName.style.color = isl.type.color;
+    card.classList.toggle('trade-card-cinematic', encounterActive);
     elType.textContent = `Produces: ${isl.type.material}`;
     elLevel.textContent = lvl.label;
     elProd.textContent = isl.level > 0
@@ -229,26 +355,45 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     elScene.textContent = `Scene: ${isl.sceneName}`;
     elInstrumentList.innerHTML = sceneInstruments.map((inst) => {
       const unlocked = instrumentRegistry.isUnlocked(isl.sceneName, inst.varName);
+      const swappable = unlocked && isSwappableSynth(inst.synthType);
       const costLabel = unlocked ? 'Owned' : (Object.keys(inst.cost).length ? formatCost(inst.cost) : 'Free');
       const disabled = unlocked || !canAfford(materials, inst.cost) || Object.keys(inst.cost).length === 0;
       const affordClass = unlocked || canAfford(materials, inst.cost) ? '' : ' afford-blocked';
+
+      let actionHtml;
+      if (swappable) {
+        // Sound swap dropdown for owned instruments
+        const currentSynth = inst.synthType;
+        const groups = {};
+        for (const opt of SOUND_OPTIONS) {
+          if (!groups[opt.group]) groups[opt.group] = [];
+          groups[opt.group].push(opt);
+        }
+        const optionsHtml = Object.entries(groups).map(([group, opts]) =>
+          `<optgroup label="${group}">${opts.map((o) =>
+            `<option value="${o.value}"${o.value === currentSynth ? ' selected' : ''}>${o.label}</option>`
+          ).join('')}</optgroup>`
+        ).join('');
+        actionHtml = `<select class="trade-sound-select" data-scene="${isl.sceneName}" data-var="${inst.varName}">${optionsHtml}</select>`;
+      } else if (unlocked) {
+        actionHtml = `<button class="trade-buy-btn" disabled>Owned</button>`;
+      } else {
+        actionHtml = `<button class="trade-buy-btn" data-scene="${isl.sceneName}" data-var="${inst.varName}" ${disabled ? 'disabled' : ''}>Buy</button>`;
+      }
+
       return `
         <div class="trade-instrument-row${affordClass}">
           <div class="trade-instrument-copy">
             <div class="trade-instrument-name">${unlocked ? '✓' : '♪'} ${inst.displayName}</div>
-            <div class="trade-instrument-meta">${inst.synthType || 'pattern'} · ${costLabel}</div>
+            <div class="trade-instrument-meta">${swappable ? 'Sound:' : `${inst.synthType || 'pattern'} · ${costLabel}`}</div>
           </div>
-          <button
-            class="trade-buy-btn"
-            data-scene="${isl.sceneName}"
-            data-var="${inst.varName}"
-            ${disabled ? 'disabled' : ''}
-          >${unlocked ? 'Owned' : 'Buy'}</button>
+          ${actionHtml}
         </div>
       `;
     }).join('');
 
-    elInstrumentList.querySelectorAll('.trade-buy-btn').forEach((button) => {
+    // Buy buttons
+    elInstrumentList.querySelectorAll('.trade-buy-btn:not([disabled])').forEach((button) => {
       button.addEventListener('click', () => {
         const sceneName = button.dataset.scene;
         const varName = button.dataset.var;
@@ -260,6 +405,21 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
         }
         instrumentRegistry.unlock(sceneName, varName);
         refreshMenu();
+      });
+    });
+
+    // Sound swap dropdowns
+    elInstrumentList.querySelectorAll('.trade-sound-select').forEach((select) => {
+      select.addEventListener('change', () => {
+        const sceneName = select.dataset.scene;
+        const varName = select.dataset.var;
+        const newSynth = select.value;
+        const currentCode = instrumentRegistry.getSceneCode(sceneName);
+        const newCode = applySoundSwap(currentCode, varName, newSynth);
+        instrumentRegistry.setSceneCode(sceneName, newCode);
+        document.dispatchEvent(new CustomEvent('oceangang:sound-swap', {
+          detail: { sceneName, code: newCode },
+        }));
       });
     });
   }
@@ -302,8 +462,28 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
   }
 
   // ── Per-frame update — collision + production ──
-  function update(boat, delta, boatController) {
+  function update(boat, delta, boatController, time = 0) {
     lastBoatRef = boat;
+
+    for (const isl of islands) {
+      if (!isl.priest) continue;
+      const walkRadius = Math.min(Math.max(isl.r * 0.16, 6), 14);
+      const walkAngle = time * 0.22 + isl.priestWalkOffset;
+      const localX = Math.cos(walkAngle) * walkRadius;
+      const localZ = Math.sin(walkAngle) * walkRadius * 0.72;
+      const sampleHeight = isl.group?.userData?.sampleHeight;
+      const y = sampleHeight ? sampleHeight(localX, localZ) : 3;
+      const bob = Math.sin(time * 1.8 + isl.priestWalkOffset) * 0.05;
+      isl.priest.position.set(localX, y + 0.12 + bob, localZ);
+      isl.priest.rotation.y = walkAngle + Math.PI * 0.5;
+      updateDaoistPriest(isl.priest, time + isl.priestWalkOffset, 1);
+    }
+
+    if (menuOpen) {
+      priestPreviewModel.rotation.y = Math.sin(time * 0.55) * 0.28 - 0.35;
+      updateDaoistPriest(priestPreviewModel, time, encounterActive ? 0.2 : 0);
+      priestPreviewRenderer.render(priestPreviewScene, priestPreviewCamera);
+    }
 
     // Production tick
     for (const isl of islands) {

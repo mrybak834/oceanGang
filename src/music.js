@@ -4,6 +4,8 @@ import { getSuperdoughAudioController } from 'superdough';
 
 export const MUSIC_SCENE_SYNC_EVENT = 'oceangang:music-scene-sync';
 export const MUSIC_PLAYBACK_EVENT = 'oceangang:music-playback';
+const SCENE_OVERRIDES_URL = '/music-scene-overrides.json';
+const SCENE_SAVE_URL = '/__save_music_scene';
 
 export const SCENES = {
   'Calm Shores': `// gentle surf, drifting ocarina, warm pads
@@ -96,7 +98,7 @@ stack(tropicWaves, tropicFlute, tropicPad, tropicBells)`,
   'Storm Approaching': `// heavy swells, urgent melody, rumbling depths
 setcps(0.35)
 
-let stormSurf = sound("brown brown")
+let stormSurf = s("bd bd")
   .slow(2)
   .lpf(sine.range(150, 900).slow(6))
   .gain(perlin.slow(8).range(0.06, 0.18))
@@ -494,9 +496,16 @@ let atmosphere = sound("<brown pink>")
 stack(kick, sub, hats, lead, claps, atmosphere)`,
 };
 
-export function initMusicPanel(shipAudio) {
+export function initMusicPanel(shipAudio, instrumentRegistry) {
   const panel = document.getElementById('music-panel');
+  const nowPlaying = document.getElementById('music-now-playing');
+  const nowPlayingTitle = document.getElementById('music-now-playing-title');
+  const nowPlayingLabel = document.getElementById('music-now-playing-label');
+  const prevBtn = document.getElementById('music-prev');
+  const nextBtn = document.getElementById('music-next');
+  const sceneScrubber = document.getElementById('music-scene-scrubber');
   const titlebar = document.getElementById('music-titlebar');
+  const saveBtn = document.getElementById('music-save');
   const closeBtn = document.getElementById('music-close');
   const resizeHandle = document.getElementById('music-resize-handle');
   const editorWrap = document.getElementById('music-editor-wrap');
@@ -505,7 +514,7 @@ export function initMusicPanel(shipAudio) {
   const musicVolSlider = document.getElementById('music-vol');
   const sfxVolSlider = document.getElementById('sfx-vol');
 
-  let visible = false;
+  let panelMode = 'hidden';
   let embeddedRepl = null;
   let replReadyPromise = null;
   let currentScene = null;
@@ -517,9 +526,40 @@ export function initMusicPanel(shipAudio) {
   const sceneDrafts = Object.fromEntries(Object.entries(SCENES));
 
   const sceneNames = Object.keys(SCENES);
+  sceneScrubber.max = Math.max(sceneNames.length - 1, 0);
 
   function getSceneCode(name) {
     return sceneDrafts[name] || SCENES[name];
+  }
+
+  async function loadProjectSceneDrafts() {
+    try {
+      const res = await fetch(SCENE_OVERRIDES_URL, { cache: 'no-store' });
+      if (!res.ok) return;
+      const saved = await res.json();
+      for (const name of Object.keys(SCENES)) {
+        if (typeof saved[name] === 'string') sceneDrafts[name] = saved[name];
+      }
+    } catch (err) {
+      console.warn('Failed to load project scene overrides:', err);
+    }
+  }
+
+  async function saveCurrentSceneDraft() {
+    const sceneName = currentScene || sceneSelect.value;
+    if (!sceneName || !embeddedRepl?.editor) return;
+    const code = embeddedRepl.editor.code;
+    const res = await fetch(SCENE_SAVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sceneName, code }),
+    });
+    if (!res.ok) {
+      throw new Error(`Save failed (${res.status})`);
+    }
+    sceneDrafts[sceneName] = code;
+    emitMusicSceneSync(sceneName, sceneDrafts[sceneName], { source: 'music-save', playing: isPlaying });
+    updateNowPlayingUi();
   }
 
   function syncMusicVolume() {
@@ -528,6 +568,18 @@ export function initMusicPanel(shipAudio) {
     const audioContext = controller?.audioContext;
     if (!gainParam || !audioContext) return;
     gainParam.setTargetAtTime(musicVolume, audioContext.currentTime, 0.05);
+  }
+
+  function getSceneIndex(name = currentScene) {
+    const index = sceneNames.indexOf(name);
+    return index >= 0 ? index : 0;
+  }
+
+  function updateNowPlayingUi() {
+    const activeName = currentScene || sceneNames[0] || 'No Scene';
+    nowPlayingTitle.textContent = activeName;
+    nowPlayingLabel.textContent = isLoading ? 'Loading' : isPlaying ? 'Now Playing' : 'Ready';
+    sceneScrubber.value = String(getSceneIndex(activeName));
   }
 
   function emitMusicSceneSync(sceneName, code, { source, playing } = {}) {
@@ -565,6 +617,7 @@ export function initMusicPanel(shipAudio) {
     emitMusicSceneSync(sceneName, code, { source: 'repl', playing });
     emitPlaybackState(sceneName, playing, 'repl');
     updateCardStates();
+    updateNowPlayingUi();
   }
 
   function installReplHooks(repl) {
@@ -597,6 +650,7 @@ export function initMusicPanel(shipAudio) {
         emitMusicSceneSync(sceneName, code, { source: 'repl-error', playing: false });
         emitPlaybackState(sceneName, false, 'repl-error');
         updateCardStates();
+        updateNowPlayingUi();
         throw err;
       }
     };
@@ -634,6 +688,8 @@ export function initMusicPanel(shipAudio) {
 
       embeddedRepl.nextElementSibling?.classList.add('music-repl-root');
       installReplHooks(embeddedRepl);
+      // Enable hover tooltips (Ctrl+hover shows function docs)
+      embeddedRepl.editor.changeSetting('isTooltipEnabled', true);
       syncMusicVolume();
       return embeddedRepl;
     });
@@ -699,6 +755,7 @@ export function initMusicPanel(shipAudio) {
       card.classList.toggle('playing', isActive && isPlaying);
       card.classList.toggle('loading', isActive && isLoading);
     }
+    updateNowPlayingUi();
   }
 
   // ── Toggle play/stop for a scene via Strudel player ──
@@ -727,16 +784,11 @@ export function initMusicPanel(shipAudio) {
       isPlaying = false;
       isLoading = false;
       emitPlaybackState(name, false, 'shared-repl-error');
+      updateNowPlayingUi();
     }
   }
 
-  buildGrid();
   const initialScene = sceneNames.includes('Treasure Map') ? 'Treasure Map' : sceneNames[0];
-  if (initialScene) {
-    currentScene = initialScene;
-    sceneSelect.value = initialScene;
-    loadScene(initialScene);
-  }
 
   // ── Load scene into embedded REPL ──
   async function loadScene(name) {
@@ -755,11 +807,31 @@ export function initMusicPanel(shipAudio) {
     isPlaying = false;
     isLoading = false;
     updateCardStates();
+    updateNowPlayingUi();
+  }
+
+  async function stepScene(direction) {
+    const currentIndex = getSceneIndex();
+    const nextIndex = (currentIndex + direction + sceneNames.length) % sceneNames.length;
+    const nextScene = sceneNames[nextIndex];
+    await toggleScene(nextScene);
   }
 
   // ── Scene selector ──
   sceneSelect.addEventListener('change', (e) => {
     loadScene(e.target.value);
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    try {
+      await saveCurrentSceneDraft();
+      saveBtn.textContent = 'Saved';
+      setTimeout(() => { saveBtn.textContent = 'Save'; }, 1000);
+    } catch (err) {
+      console.error(err);
+      saveBtn.textContent = 'Error';
+      setTimeout(() => { saveBtn.textContent = 'Save'; }, 1200);
+    }
   });
 
   // ── Volume sliders ──
@@ -772,31 +844,48 @@ export function initMusicPanel(shipAudio) {
     syncMusicVolume();
   });
 
-  // ── Toggle with M key ──
-  function show() {
-    visible = true;
-    panel.classList.remove('hidden');
-    panel.classList.remove('faded');
-    updateCardStates();
+  function applyPanelMode() {
+    panel.classList.toggle('hidden', panelMode === 'hidden');
+    panel.classList.toggle('music-panel-mini', panelMode === 'mini');
+    if (panelMode !== 'hidden') panel.classList.remove('faded');
+    updateNowPlayingUi();
   }
 
-  function hide() {
-    visible = false;
-    panel.classList.add('hidden');
-  }
-
-  function togglePanel() {
-    if (visible) hide(); else show();
+  function cyclePanelMode() {
+    panelMode = panelMode === 'hidden' ? 'mini' : panelMode === 'mini' ? 'full' : 'hidden';
+    applyPanelMode();
   }
 
   window.addEventListener('keydown', (e) => {
     if (isInsidePanel(e.target)) return;
     if (e.code === 'KeyM' && !e.repeat) {
-      togglePanel();
+      cyclePanelMode();
     }
   });
 
-  closeBtn.addEventListener('click', hide);
+  closeBtn.addEventListener('click', () => {
+    panelMode = 'hidden';
+    applyPanelMode();
+  });
+
+  prevBtn.addEventListener('click', () => {
+    stepScene(-1);
+  });
+
+  nextBtn.addEventListener('click', () => {
+    stepScene(1);
+  });
+
+  sceneScrubber.addEventListener('input', (e) => {
+    const index = Number(e.target.value) || 0;
+    nowPlayingTitle.textContent = sceneNames[index] || '';
+  });
+
+  sceneScrubber.addEventListener('change', async (e) => {
+    const index = Number(e.target.value) || 0;
+    const nextScene = sceneNames[index];
+    if (nextScene) await toggleScene(nextScene);
+  });
 
   // ── Auto-play current scene on first forward press ──
   let autoPlayed = false;
@@ -817,7 +906,7 @@ export function initMusicPanel(shipAudio) {
 
   // ── Fade panel when clicking back to game ──
   window.addEventListener('mousedown', (e) => {
-    if (!visible) return;
+    if (panelMode === 'hidden') return;
     if (isInsidePanel(e.target)) {
       panel.classList.remove('faded');
     } else {
@@ -826,7 +915,7 @@ export function initMusicPanel(shipAudio) {
   });
   // Un-fade on hover
   panel.addEventListener('mouseenter', () => {
-    if (visible) panel.classList.remove('faded');
+    if (panelMode !== 'hidden') panel.classList.remove('faded');
   });
 
   // ── Drag titlebar to move panel ──
@@ -843,6 +932,7 @@ export function initMusicPanel(shipAudio) {
   });
 
   window.addEventListener('mousemove', (e) => {
+    if (panelMode === 'mini') return;
     if (dragging) {
       panel.style.bottom = 'auto';
       panel.style.right = 'auto';
@@ -869,6 +959,7 @@ export function initMusicPanel(shipAudio) {
   });
 
   window.addEventListener('mousemove', (e) => {
+    if (panelMode === 'mini') return;
     if (!resizing) return;
     const dx = resizeStart.x - e.clientX;
     const dy = e.clientY - resizeStart.y;
@@ -883,6 +974,37 @@ export function initMusicPanel(shipAudio) {
     panel.style.left = Math.max(0, newLeft) + 'px';
     panel.style.top = resizeStart.top + 'px';
   });
+
+  async function initScenes() {
+    await loadProjectSceneDrafts();
+    buildGrid();
+    if (initialScene) {
+      currentScene = initialScene;
+      sceneSelect.value = initialScene;
+      await loadScene(initialScene);
+    }
+    updateNowPlayingUi();
+  }
+
+  // ── Sound swap from trading UI ──
+  document.addEventListener('oceangang:sound-swap', async (event) => {
+    const { sceneName, code } = event.detail || {};
+    if (!sceneName || !code) return;
+    sceneDrafts[sceneName] = code;
+    persistSceneDrafts();
+    if (currentScene === sceneName) {
+      const repl = await ensureEmbeddedRepl();
+      repl.setAttribute('code', code);
+      if (isPlaying) {
+        try { await repl.editor.evaluate(); } catch (err) {
+          console.warn('Sound swap re-evaluate failed:', err);
+        }
+      }
+    }
+  });
+
+  applyPanelMode();
+  initScenes();
 }
 
 function isInsidePanel(el) {

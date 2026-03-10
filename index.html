@@ -14,12 +14,24 @@
 
     <!-- Strudel Music Editor Panel -->
     <div id="music-panel" class="music-panel hidden">
+      <div id="music-now-playing" class="music-now-playing">
+        <div class="music-now-playing-copy">
+          <div id="music-now-playing-label" class="music-now-playing-label">Now Playing</div>
+          <div id="music-now-playing-title" class="music-now-playing-title">Treasure Map</div>
+        </div>
+        <div class="music-now-playing-controls">
+          <button id="music-prev" class="music-now-btn" title="Previous track">&#9664;</button>
+          <input type="range" id="music-scene-scrubber" class="music-scene-scrubber" min="0" max="0" value="0">
+          <button id="music-next" class="music-now-btn" title="Next track">&#9654;</button>
+        </div>
+      </div>
       <div id="music-titlebar" class="music-titlebar">
         <span class="music-title">Strudel</span>
         <div class="music-titlebar-controls">
           <select id="music-scene-select" class="music-scene-select" title="Choose a scene">
             <!-- populated dynamically from SCENES in music.js -->
           </select>
+          <button id="music-save" class="music-btn music-btn-save" title="Save current patch">Save</button>
           <button id="music-grid-btn" class="music-btn music-btn-grid" title="Preset grid">&#9638;</button>
           <button id="music-close" class="music-btn music-btn-close" title="Close (M)">&times;</button>
         </div>
