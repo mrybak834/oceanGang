@@ -139,6 +139,13 @@ function buildGunwaleGeometry() {
 
 export function createBoat(scene) {
   const boat = new THREE.Group();
+  const editableObjects = [];
+
+  function registerEditable(name, object) {
+    object.name = name;
+    editableObjects.push(object);
+    return object;
+  }
 
   // --- Procedural wood color texture ---
   function makeWoodTexture(baseR, baseG, baseB, opts = {}) {
@@ -353,7 +360,7 @@ export function createBoat(scene) {
 
   // --- Hull (single continuous mesh) ---
   const hullGeo = buildHullGeometry();
-  const hull = new THREE.Mesh(hullGeo, hullMaterial);
+  const hull = registerEditable('Hull', new THREE.Mesh(hullGeo, hullMaterial));
   boat.add(hull);
 
   // Hull upper sides / gunwale
@@ -402,7 +409,7 @@ export function createBoat(scene) {
 
   const deckGeo = new THREE.ShapeGeometry(deckShape, 1);
   deckGeo.rotateZ(Math.PI); // flip 180° in-plane before laying flat
-  const deck = new THREE.Mesh(deckGeo, deckMaterial);
+  const deck = registerEditable('Main Deck', new THREE.Mesh(deckGeo, deckMaterial));
   deck.rotation.x = -Math.PI / 2;
   deck.position.y = 1.05;
   boat.add(deck);
@@ -424,17 +431,17 @@ export function createBoat(scene) {
   // --- Cabin / Quarterdeck (raised stern) ---
   // Raised stern deck
   const sternDeckGeo = new THREE.BoxGeometry(2.4, 0.15, 3.0);
-  const sternDeck = new THREE.Mesh(sternDeckGeo, deckMaterial);
+  const sternDeck = registerEditable('Quarterdeck', new THREE.Mesh(sternDeckGeo, deckMaterial));
   sternDeck.position.set(0, 1.35, 3.2);
   boat.add(sternDeck);
 
   // Step up to stern deck
   const stepGeo = new THREE.BoxGeometry(2.0, 0.3, 0.15);
-  const step = new THREE.Mesh(stepGeo, new THREE.MeshStandardMaterial({
+  const step = registerEditable('Quarterdeck Step', new THREE.Mesh(stepGeo, new THREE.MeshStandardMaterial({
     color: 0x7a4a22,
     map: makeWoodTexture(140, 108, 64, { width: 128, height: 64, grainCount: 20, knots: 1 }),
     roughness: 0.9, metalness: 0.0,
-  }));
+  })));
   step.position.set(0, 1.2, 1.65);
   boat.add(step);
 
@@ -445,7 +452,7 @@ export function createBoat(scene) {
     roughness: 0.9, metalness: 0.0,
   });
   const cabinGeo = new THREE.BoxGeometry(1.8, 1.1, 2.0);
-  const cabin = new THREE.Mesh(cabinGeo, cabinMaterial);
+  const cabin = registerEditable('Cabin', new THREE.Mesh(cabinGeo, cabinMaterial));
   cabin.position.set(0, 1.95, 3.5);
   boat.add(cabin);
 
@@ -456,7 +463,7 @@ export function createBoat(scene) {
     map: makeWoodTexture(140, 95, 62, { width: 128, height: 128, grainCount: 35, knots: 2, planks: 4 }),
     roughness: 0.9, metalness: 0.0,
   });
-  const roof = new THREE.Mesh(roofGeo, roofMat);
+  const roof = registerEditable('Cabin Roof', new THREE.Mesh(roofGeo, roofMat));
   roof.position.set(0, 2.55, 3.5);
   boat.add(roof);
 
@@ -484,7 +491,7 @@ export function createBoat(scene) {
 
   // --- Main Mast ---
   const mainMastGeo = new THREE.CylinderGeometry(0.1, 0.14, 10, 8);
-  const mainMast = new THREE.Mesh(mainMastGeo, mastMaterial);
+  const mainMast = registerEditable('Main Mast', new THREE.Mesh(mainMastGeo, mastMaterial));
   mainMast.position.set(0, 6.1, -0.5);
   boat.add(mainMast);
 
@@ -497,13 +504,13 @@ export function createBoat(scene) {
 
   // --- Fore Mast ---
   const foreMastGeo = new THREE.CylinderGeometry(0.08, 0.11, 7, 8);
-  const foreMast = new THREE.Mesh(foreMastGeo, mastMaterial);
+  const foreMast = registerEditable('Fore Mast', new THREE.Mesh(foreMastGeo, mastMaterial));
   foreMast.position.set(0, 4.6, -3.5);
   boat.add(foreMast);
 
   // --- Main Sail (subdivided for wind deformation) ---
   const mainSailGeo = new THREE.PlaneGeometry(3.5, 6.5, 10, 14);
-  const mainSail = new THREE.Mesh(mainSailGeo, mainSailMat);
+  const mainSail = registerEditable('Main Sail', new THREE.Mesh(mainSailGeo, mainSailMat));
   mainSail.position.set(0, 6.0, -0.5);
   mainSail.rotation.y = -Math.PI / 2;
   // Taper: make it triangular by pulling top-right vertices toward mast
@@ -528,7 +535,7 @@ export function createBoat(scene) {
 
   // --- Fore Sail (subdivided) ---
   const foreSailGeo = new THREE.PlaneGeometry(2.5, 4.5, 8, 10);
-  const foreSail = new THREE.Mesh(foreSailGeo, foreSailMat);
+  const foreSail = registerEditable('Fore Sail', new THREE.Mesh(foreSailGeo, foreSailMat));
   foreSail.position.set(0, 4.0, -3.5);
   foreSail.rotation.y = -Math.PI / 2;
   const fsPos = foreSailGeo.attributes.position;
@@ -547,7 +554,7 @@ export function createBoat(scene) {
 
   // --- Jib (triangular, subdivided) ---
   const jibGeo = new THREE.PlaneGeometry(2.2, 5.0, 7, 12);
-  const jib = new THREE.Mesh(jibGeo, jibSailMat);
+  const jib = registerEditable('Jib Sail', new THREE.Mesh(jibGeo, jibSailMat));
   jib.position.set(0, 4.0, -5.5);
   jib.rotation.y = -Math.PI / 2;
   const jPos = jibGeo.attributes.position;
@@ -566,7 +573,7 @@ export function createBoat(scene) {
 
   // --- Boom ---
   const boomGeo = new THREE.CylinderGeometry(0.06, 0.06, 4, 6);
-  const boom = new THREE.Mesh(boomGeo, mastMaterial);
+  const boom = registerEditable('Boom', new THREE.Mesh(boomGeo, mastMaterial));
   boom.rotation.z = Math.PI / 2;
   boom.position.set(1.5, 2.7, -0.5);
   boat.add(boom);
@@ -619,7 +626,7 @@ export function createBoat(scene) {
   boat.add(sternCross);
 
   // --- Helm wheel ---
-  const wheelGroup = new THREE.Group();
+  const wheelGroup = registerEditable('Helm Wheel', new THREE.Group());
   const wheelRingGeo = new THREE.TorusGeometry(0.28, 0.03, 8, 18);
   const wheelHubGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.12, 8);
   const wheelRing = new THREE.Mesh(wheelRingGeo, railMaterial);
@@ -672,7 +679,7 @@ export function createBoat(scene) {
     roughness: 0.5,
     side: THREE.DoubleSide,
   });
-  const flag = new THREE.Mesh(flagGeo, flagMat);
+  const flag = registerEditable('Flag', new THREE.Mesh(flagGeo, flagMat));
   flag.position.set(0, 10.8, -0.5);
   flag.rotation.y = -Math.PI / 2;
   boat.add(flag);
@@ -680,7 +687,7 @@ export function createBoat(scene) {
   // --- Rudder ---
   const rudderGeo = new THREE.BoxGeometry(0.1, 1.4, 0.6);
   const rudderMat = new THREE.MeshStandardMaterial({ color: 0x3a2510, roughness: 0.8 });
-  const rudder = new THREE.Mesh(rudderGeo, rudderMat);
+  const rudder = registerEditable('Rudder', new THREE.Mesh(rudderGeo, rudderMat));
   rudder.position.set(0, 0.0, 5.2);
   boat.add(rudder);
 
@@ -721,6 +728,8 @@ export function createBoat(scene) {
       shirtColor = 0xe8e0d0,
       vestColor = null,
       coatColor = null,
+      capeColor = null,
+      capeTrimColor = null,
       sashColor = null,
       trouserColor = 0x2b3d5e,
       hatType = 'bandana',
@@ -728,6 +737,7 @@ export function createBoat(scene) {
       plumeColor = null,
       hasBeard = false,
       beardColor = 0x3a2a1a,
+      beardStyle = 'short',
       armPose = 'neutral',
     } = opts;
 
@@ -783,6 +793,37 @@ export function createBoat(scene) {
       }
     }
 
+    if (capeColor) {
+      const capeMat = new THREE.MeshStandardMaterial({
+        color: capeColor,
+        roughness: 0.86,
+        side: THREE.DoubleSide,
+      });
+      const capeGeo = new THREE.CylinderGeometry(0.08, 0.24, 0.62, 10, 1, true, Math.PI * 0.08, Math.PI * 0.84);
+      const cape = new THREE.Mesh(capeGeo, capeMat);
+      cape.position.set(0, 0.57, -0.12);
+      cape.rotation.x = 0.14;
+      cape.rotation.y = Math.PI;
+      person.add(cape);
+
+      if (capeTrimColor) {
+        const trimMat = new THREE.MeshStandardMaterial({ color: capeTrimColor, roughness: 0.65 });
+        const claspGeo = new THREE.SphereGeometry(0.025, 6, 6);
+        for (const side of [-1, 1]) {
+          const clasp = new THREE.Mesh(claspGeo, trimMat);
+          clasp.position.set(side * 0.08, 0.73, -0.03);
+          person.add(clasp);
+        }
+
+        const trimGeo = new THREE.TorusGeometry(0.2, 0.01, 4, 16, Math.PI * 0.82);
+        const trim = new THREE.Mesh(trimGeo, trimMat);
+        trim.position.set(0, 0.33, -0.24);
+        trim.rotation.x = Math.PI / 2;
+        trim.rotation.z = Math.PI;
+        person.add(trim);
+      }
+    }
+
     // Belt / sash
     const beltMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.7 });
     const beltGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.05, 8);
@@ -832,10 +873,27 @@ export function createBoat(scene) {
     // Beard
     if (hasBeard) {
       const beardMat = new THREE.MeshStandardMaterial({ color: beardColor, roughness: 0.9 });
-      const beardGeo = new THREE.SphereGeometry(0.07, 6, 4, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.5);
-      const beard = new THREE.Mesh(beardGeo, beardMat);
-      beard.position.set(0, 0.82, 0.04);
-      person.add(beard);
+      if (beardStyle === 'longCurly') {
+        const beardBaseGeo = new THREE.CylinderGeometry(0.05, 0.08, 0.24, 7);
+        const beardBase = new THREE.Mesh(beardBaseGeo, beardMat);
+        beardBase.position.set(0, 0.72, 0.05);
+        beardBase.rotation.x = 0.12;
+        person.add(beardBase);
+
+        for (const side of [-1, 1]) {
+          const curlGeo = new THREE.TorusGeometry(0.045, 0.015, 5, 10, Math.PI * 1.35);
+          const curl = new THREE.Mesh(curlGeo, beardMat);
+          curl.position.set(side * 0.05, 0.57, 0.08);
+          curl.rotation.z = side * 0.8;
+          curl.rotation.x = Math.PI / 2;
+          person.add(curl);
+        }
+      } else {
+        const beardGeo = new THREE.SphereGeometry(0.07, 6, 4, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.5);
+        const beard = new THREE.Mesh(beardGeo, beardMat);
+        beard.position.set(0, 0.82, 0.04);
+        person.add(beard);
+      }
     }
 
     // Hat
@@ -875,6 +933,40 @@ export function createBoat(scene) {
       const visor = new THREE.Mesh(visorGeo, hatMat);
       visor.position.set(0, 0.92, 0.1);
       person.add(visor);
+    } else if (hatType === 'noble') {
+      const brimMat = new THREE.MeshStandardMaterial({ color: hatColor, roughness: 0.7 });
+      const brimGeo = new THREE.CylinderGeometry(0.17, 0.21, 0.02, 20);
+      const brim = new THREE.Mesh(brimGeo, brimMat);
+      brim.position.y = 0.98;
+      person.add(brim);
+
+      const crownGeo = new THREE.CylinderGeometry(0.1, 0.13, 0.18, 12);
+      const crown = new THREE.Mesh(crownGeo, brimMat);
+      crown.position.y = 1.08;
+      person.add(crown);
+
+      const bandMat = new THREE.MeshStandardMaterial({ color: 0xb99133, roughness: 0.55 });
+      const bandGeo = new THREE.TorusGeometry(0.115, 0.012, 4, 14);
+      const band = new THREE.Mesh(bandGeo, bandMat);
+      band.position.y = 1.03;
+      band.rotation.x = Math.PI / 2;
+      person.add(band);
+
+      if (plumeColor) {
+        const plumeMat = new THREE.MeshStandardMaterial({ color: plumeColor, roughness: 0.72 });
+        const plumeStemGeo = new THREE.CylinderGeometry(0.01, 0.012, 0.22, 5);
+        const plumeStem = new THREE.Mesh(plumeStemGeo, plumeMat);
+        plumeStem.position.set(0.1, 1.17, 0.01);
+        plumeStem.rotation.z = -0.5;
+        person.add(plumeStem);
+
+        const plumeTipGeo = new THREE.ConeGeometry(0.035, 0.18, 6);
+        const plumeTip = new THREE.Mesh(plumeTipGeo, plumeMat);
+        plumeTip.position.set(0.15, 1.25, 0.01);
+        plumeTip.rotation.z = -0.78;
+        plumeTip.rotation.x = 0.2;
+        person.add(plumeTip);
+      }
     }
 
     person.position.set(x, 1.1, z);
@@ -883,11 +975,13 @@ export function createBoat(scene) {
   }
 
   // True Osmodius at the helm
-  boat.add(createSailor(0, 3.05, 0, {
-    hatType: 'tricorn',
-    hatColor: 0x101820,
-    plumeColor: 0x0f8b8d,
+  const trueOsmodius = registerEditable('True Osmodius', createSailor(0, 1.95, 0, {
+    hatType: 'noble',
+    hatColor: 0x17131f,
+    plumeColor: 0x8c1c13,
     coatColor: 0x12343b,
+    capeColor: 0x8c1c13,
+    capeTrimColor: 0xd7b25d,
     vestColor: 0x3a2414,
     sashColor: 0xc89b3c,
     shirtColor: 0xf1e2c4,
@@ -895,23 +989,25 @@ export function createBoat(scene) {
     skinColor: 0xc99661,
     hasBeard: true,
     beardColor: 0x1d1a18,
+    beardStyle: 'longCurly',
     armPose: 'helm',
   }));
+  boat.add(trueOsmodius);
   // First mate lookout at bow (bandana, weathered)
-  boat.add(createSailor(0, -4.5, Math.PI, {
+  boat.add(registerEditable('First Mate', createSailor(0, -4.5, Math.PI, {
     hatType: 'bandana', hatColor: 0xcc3333, vestColor: 0x4a3520,
     shirtColor: 0xd4c8b0, skinColor: 0xc4915a,
-  }));
+  })));
   // Deckhand by the main mast
-  boat.add(createSailor(0.5, 0.5, -0.3, {
+  boat.add(registerEditable('Deckhand', createSailor(0.5, 0.5, -0.3, {
     hatType: 'bandana', hatColor: 0x2255aa,
     shirtColor: 0xccc4b0, trouserColor: 0x3a3a2e,
-  }));
+  })));
   // Bosun near fore mast (cap, sturdy)
-  boat.add(createSailor(-0.4, -1.5, 0.5, {
+  boat.add(registerEditable('Bosun', createSailor(-0.4, -1.5, 0.5, {
     hatType: 'cap', hatColor: 0x3a3a3a,
     shirtColor: 0xbbb8a8, trouserColor: 0x2a2a20, hasBeard: true, skinColor: 0xc89870,
-  }));
+  })));
 
   // --- Scale up ---
   boat.scale.set(2.5, 2.5, 2.5);
@@ -921,6 +1017,7 @@ export function createBoat(scene) {
   boat.userData.mainSail = mainSail;
   boat.userData.foreSail = foreSail;
   boat.userData.jib = jib;
+  boat.userData.editableObjects = editableObjects;
 
   scene.add(boat);
   return boat;

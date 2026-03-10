@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { createOcean } from './ocean.js';
 import { createBoat, createBoatController } from './boat.js';
 import { createCrateManager } from './crates.js';
@@ -19,6 +20,7 @@ let shipAudio, ocean, tradingSystem, perfTracker, instrumentRegistry;
 let islandGroups = [], islandPositions = [];
 let wasJumping = false;
 let wasSplashing = false;
+let shipEditor = null;
 const ISLAND_VISIBLE_DIST = 3000;
 const ISLAND_HIDE_DIST = 3200;
 
@@ -98,6 +100,7 @@ function init() {
   // Boat
   boat = createBoat(scene);
   boatController = createBoatController();
+  shipEditor = initShipEditor();
 
   // Islands
   const islandsResult = createIslands(scene);
@@ -239,8 +242,12 @@ function animate() {
 
   // Camera follow
   perfTracker.markStart('camera');
-  updateCamera(delta);
+  if (!shipEditor?.isDragging) updateCamera(delta);
   perfTracker.markEnd('camera');
+
+  if (shipEditor?.helper && shipEditor.selectedObject) {
+    shipEditor.helper.update();
+  }
 
   // Set perf context (before render so it captures current frame state)
   let visibleIslandCount = 0;
@@ -295,4 +302,185 @@ function updateCamera(delta) {
 
   // Look at boat
   camera.lookAt(boat.position);
+}
+
+function initShipEditor() {
+  const editableObjects = boat?.userData?.editableObjects || [];
+  if (!editableObjects.length) return null;
+
+  const panel = document.createElement('div');
+  Object.assign(panel.style, {
+    position: 'fixed',
+    top: '20px',
+    left: '20px',
+    width: '240px',
+    padding: '14px',
+    borderRadius: '12px',
+    background: 'rgba(10, 18, 24, 0.82)',
+    color: '#f5ead7',
+    fontFamily: 'Georgia, serif',
+    zIndex: '250',
+    boxShadow: '0 12px 30px rgba(0,0,0,0.35)',
+    backdropFilter: 'blur(8px)',
+    pointerEvents: 'auto',
+  });
+
+  const title = document.createElement('div');
+  title.textContent = 'Ship Objects';
+  Object.assign(title.style, {
+    fontSize: '18px',
+    letterSpacing: '0.06em',
+    marginBottom: '10px',
+  });
+  panel.appendChild(title);
+
+  const select = document.createElement('select');
+  Object.assign(select.style, {
+    width: '100%',
+    marginBottom: '12px',
+    padding: '8px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.16)',
+    background: 'rgba(255,255,255,0.08)',
+    color: '#f5ead7',
+  });
+  editableObjects.forEach((object, index) => {
+    const option = document.createElement('option');
+    option.value = String(index);
+    option.textContent = object.name || `Object ${index + 1}`;
+    select.appendChild(option);
+  });
+  panel.appendChild(select);
+
+  const modeRow = document.createElement('div');
+  Object.assign(modeRow.style, {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '12px',
+  });
+
+  const fields = {};
+  const coords = document.createElement('div');
+  Object.assign(coords.style, {
+    display: 'grid',
+    gridTemplateColumns: '20px 1fr',
+    gap: '8px 10px',
+    alignItems: 'center',
+  });
+
+  ['x', 'y', 'z'].forEach((axis) => {
+    const label = document.createElement('label');
+    label.textContent = axis.toUpperCase();
+    label.htmlFor = `ship-editor-${axis}`;
+    coords.appendChild(label);
+
+    const input = document.createElement('input');
+    input.id = `ship-editor-${axis}`;
+    input.type = 'number';
+    input.step = '0.1';
+    Object.assign(input.style, {
+      width: '100%',
+      padding: '7px 8px',
+      borderRadius: '8px',
+      border: '1px solid rgba(255,255,255,0.16)',
+      background: 'rgba(255,255,255,0.06)',
+      color: '#f5ead7',
+    });
+    fields[axis] = input;
+    coords.appendChild(input);
+  });
+
+  const hint = document.createElement('div');
+  hint.textContent = 'Use the gizmo or edit local position values.';
+  Object.assign(hint.style, {
+    marginTop: '10px',
+    fontSize: '12px',
+    color: 'rgba(245, 234, 215, 0.72)',
+  });
+
+  panel.appendChild(modeRow);
+  panel.appendChild(coords);
+  panel.appendChild(hint);
+  document.body.appendChild(panel);
+
+  const transform = new TransformControls(camera, renderer.domElement);
+  transform.setMode('translate');
+  transform.setSpace('local');
+  scene.add(transform);
+
+  const helper = new THREE.BoxHelper(editableObjects[0], 0xf5c542);
+  helper.visible = false;
+  scene.add(helper);
+
+  const editor = {
+    panel,
+    select,
+    transform,
+    helper,
+    selectedObject: null,
+    isDragging: false,
+  };
+
+  function syncFields() {
+    if (!editor.selectedObject) return;
+    fields.x.value = editor.selectedObject.position.x.toFixed(2);
+    fields.y.value = editor.selectedObject.position.y.toFixed(2);
+    fields.z.value = editor.selectedObject.position.z.toFixed(2);
+  }
+
+  function selectObject(object) {
+    editor.selectedObject = object;
+    transform.attach(object);
+    helper.setFromObject(object);
+    helper.visible = true;
+    syncFields();
+  }
+
+  ['translate'].forEach((mode) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = mode[0].toUpperCase() + mode.slice(1);
+    Object.assign(button.style, {
+      flex: '1',
+      padding: '8px 10px',
+      borderRadius: '8px',
+      border: '1px solid rgba(255,255,255,0.18)',
+      background: 'rgba(15, 139, 141, 0.25)',
+      color: '#f5ead7',
+      cursor: 'pointer',
+    });
+    button.addEventListener('click', () => transform.setMode(mode));
+    modeRow.appendChild(button);
+  });
+
+  select.addEventListener('change', () => {
+    selectObject(editableObjects[Number(select.value)]);
+  });
+
+  Object.entries(fields).forEach(([axis, input]) => {
+    input.addEventListener('input', () => {
+      if (!editor.selectedObject) return;
+      const value = Number.parseFloat(input.value);
+      if (!Number.isFinite(value)) return;
+      editor.selectedObject.position[axis] = value;
+      helper.update();
+    });
+  });
+
+  transform.addEventListener('change', () => {
+    helper.update();
+    syncFields();
+  });
+
+  transform.addEventListener('dragging-changed', (event) => {
+    editor.isDragging = event.value;
+    isMouseDragging = false;
+  });
+
+  select.value = '0';
+  const defaultIndex = Math.max(0, editableObjects.findIndex((object) => object.name === 'True Osmodius'));
+  select.value = String(defaultIndex);
+  selectObject(editableObjects[defaultIndex]);
+
+  return editor;
 }
