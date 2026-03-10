@@ -24,6 +24,16 @@
           <button id="music-close" class="music-btn music-btn-close" title="Close (M)">&times;</button>
         </div>
       </div>
+      <div class="music-volume-bar">
+        <div class="music-vol-row">
+          <label for="music-vol">Music</label>
+          <input type="range" id="music-vol" min="0" max="100" value="100">
+        </div>
+        <div class="music-vol-row">
+          <label for="sfx-vol">SFX</label>
+          <input type="range" id="sfx-vol" min="0" max="100" value="100">
+        </div>
+      </div>
       <div id="music-preset-grid" class="music-preset-grid"></div>
       <div id="music-editor-wrap" class="music-editor-wrap"></div>
       <div id="music-resize-handle" class="music-resize-handle"></div>

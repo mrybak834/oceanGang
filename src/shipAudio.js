@@ -4,6 +4,17 @@
 export function createShipAudio() {
   let ctx = null;
   let initialized = false;
+  let userHasInteracted = false;
+  let pendingVolume = 1.0;
+
+  // Only allow AudioContext creation after a user gesture
+  function onInteraction() {
+    userHasInteracted = true;
+    window.removeEventListener('pointerdown', onInteraction);
+    window.removeEventListener('keydown', onInteraction);
+  }
+  window.addEventListener('pointerdown', onInteraction);
+  window.addEventListener('keydown', onInteraction);
 
   // Nodes
   let hullNoiseSource, hullFilter, hullGain;
@@ -38,7 +49,7 @@ export function createShipAudio() {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
 
     masterGain = ctx.createGain();
-    masterGain.gain.value = 1.0;
+    masterGain.gain.value = pendingVolume;
     masterGain.connect(ctx.destination);
 
     // ── Hull wash: brown noise → lowpass → gain ──
@@ -108,6 +119,7 @@ export function createShipAudio() {
 
   function update(speed, boost) {
     if (!initialized) {
+      if (!userHasInteracted) return;
       init();
     }
     if (ctx.state === 'suspended') {
@@ -135,5 +147,12 @@ export function createShipAudio() {
     windGain.gain.setTargetAtTime(windT * 0.035, now, smooth);
   }
 
-  return { update };
+  function setVolume(v) {
+    pendingVolume = v;
+    if (masterGain && ctx) {
+      masterGain.gain.setTargetAtTime(v, ctx.currentTime, 0.05);
+    }
+  }
+
+  return { update, setVolume };
 }

@@ -1,4 +1,5 @@
 // ─── Strudel Music Panel — scenes, toggle, drag, resize, fade ───
+import { initStrudel, evaluate as strudelEvaluate, hush as strudelHush } from '@strudel/web';
 
 const SCENES = {
   'Calm Shores': `// gentle surf, drifting ocarina, warm pads
@@ -468,7 +469,44 @@ function makeStrudelURL(code) {
   return `https://strudel.cc/#${encodeURIComponent(btoa(unescape(encodeURIComponent(code))))}`;
 }
 
-export function initMusicPanel() {
+// Scale numeric .gain(N) values by a volume multiplier
+function scaleGains(code, vol) {
+  return code.replace(/\.gain\((\d+\.?\d*)\)/g, (_, n) => {
+    return `.gain(${(parseFloat(n) * vol).toFixed(4)})`;
+  });
+}
+
+// ─── Strudel engine (direct ESM, no iframe) ───
+let strudelReady = false;
+let strudelInitPromise = null;
+
+function ensureStrudel() {
+  if (strudelReady) return Promise.resolve();
+  if (strudelInitPromise) return strudelInitPromise;
+  strudelInitPromise = initStrudel().then(() => { strudelReady = true; });
+  return strudelInitPromise;
+}
+
+async function strudelPlay(code) {
+  await ensureStrudel();
+  await strudelEvaluate(code);
+}
+
+function strudelStop() {
+  if (strudelReady) {
+    try { strudelHush(); } catch (e) { /* ignore if not playing */ }
+  }
+}
+
+// Strip visualization calls — they need a REPL canvas we don't have
+function stripViz(code) {
+  return code
+    .replace(/\.\s*pianoroll\s*\([^)]*\)/g, '')
+    .replace(/\.\s*scope\s*\([^)]*\)/g, '')
+    .replace(/\.\s*spiral\s*\([^)]*\)/g, '');
+}
+
+export function initMusicPanel(shipAudio) {
   const panel = document.getElementById('music-panel');
   const titlebar = document.getElementById('music-titlebar');
   const closeBtn = document.getElementById('music-close');
@@ -477,11 +515,16 @@ export function initMusicPanel() {
   const sceneSelect = document.getElementById('music-scene-select');
   const presetGrid = document.getElementById('music-preset-grid');
   const gridBtn = document.getElementById('music-grid-btn');
+  const musicVolSlider = document.getElementById('music-vol');
+  const sfxVolSlider = document.getElementById('sfx-vol');
 
   let visible = false;
   let iframe = null;
   let currentScene = null;
   let gridMode = true; // start in grid mode
+  let musicVolume = 1.0;
+  let isPlaying = false;
+  let isLoading = false;
 
   const sceneNames = Object.keys(SCENES);
 
@@ -520,13 +563,51 @@ export function initMusicPanel() {
       card.appendChild(title);
       card.appendChild(desc);
 
-      card.addEventListener('click', () => {
-        loadScene(name);
-        showEditor();
-      });
+      card.addEventListener('click', () => toggleScene(name));
 
       presetGrid.appendChild(card);
     }
+  }
+
+  function updateCardStates() {
+    for (const card of presetGrid.children) {
+      const cardName = card.querySelector('.music-preset-name').textContent;
+      const isActive = cardName === currentScene;
+      card.classList.toggle('playing', isActive && isPlaying);
+      card.classList.toggle('loading', isActive && isLoading);
+    }
+  }
+
+  // ── Toggle play/stop for a scene via Strudel player ──
+  async function toggleScene(name) {
+    if (isLoading) return;
+
+    if (currentScene === name && isPlaying) {
+      strudelStop();
+      isPlaying = false;
+      currentScene = null;
+      updateCardStates();
+      return;
+    }
+
+    currentScene = name;
+    sceneSelect.value = name;
+    isLoading = true;
+    isPlaying = false;
+    updateCardStates();
+
+    try {
+      let code = stripViz(SCENES[name]);
+      if (musicVolume < 1.0) code = scaleGains(code, musicVolume);
+      await strudelPlay(code);
+      isPlaying = true;
+    } catch (err) {
+      console.error('Strudel error:', err);
+      isPlaying = false;
+      currentScene = null;
+    }
+    isLoading = false;
+    updateCardStates();
   }
 
   // ── Show/hide grid vs editor ──
@@ -534,31 +615,34 @@ export function initMusicPanel() {
     gridMode = true;
     presetGrid.classList.remove('grid-hidden');
     editorWrap.style.display = 'none';
+    if (iframe) { iframe.remove(); iframe = null; }
     gridBtn.classList.add('active');
-    // Update playing state on cards
-    for (const card of presetGrid.children) {
-      const cardName = card.querySelector('.music-preset-name').textContent;
-      card.classList.toggle('playing', cardName === currentScene);
-    }
+    updateCardStates();
   }
 
-  function showEditor() {
+  function showEditor(keepAudio) {
     gridMode = false;
+    if (!keepAudio && isPlaying) {
+      strudelStop();
+      isPlaying = false;
+    }
     presetGrid.classList.add('grid-hidden');
+    editorWrap.classList.remove('backdrop');
     editorWrap.style.display = '';
     gridBtn.classList.remove('active');
+    const sceneName = currentScene || sceneSelect.value;
+    if (sceneName) loadScene(sceneName);
   }
 
   buildGrid();
-  // Start in grid mode — hide editor, show grid
-  editorWrap.style.display = 'none';
-  gridBtn.classList.add('active');
+  showGrid();
 
   // ── Load scene into iframe ──
   function loadScene(name) {
     currentScene = name;
     sceneSelect.value = name;
-    const code = SCENES[name];
+    let code = SCENES[name];
+    if (musicVolume < 1.0) code = scaleGains(code, musicVolume);
     const url = makeStrudelURL(code);
 
     if (iframe) iframe.remove();
@@ -571,8 +655,12 @@ export function initMusicPanel() {
 
   // ── Scene selector ──
   sceneSelect.addEventListener('change', (e) => {
-    loadScene(e.target.value);
-    if (gridMode) showEditor();
+    if (gridMode) {
+      toggleScene(e.target.value);
+    } else {
+      currentScene = e.target.value;
+      loadScene(e.target.value);
+    }
   });
 
   // ── Grid toggle button ──
@@ -581,15 +669,28 @@ export function initMusicPanel() {
     else showGrid();
   });
 
+  // ── Volume sliders ──
+  sfxVolSlider.addEventListener('input', (e) => {
+    shipAudio.setVolume(e.target.value / 100);
+  });
+
+  musicVolSlider.addEventListener('change', async (e) => {
+    musicVolume = e.target.value / 100;
+    if (currentScene && isPlaying && strudelReady) {
+      let code = stripViz(SCENES[currentScene]);
+      if (musicVolume < 1.0) code = scaleGains(code, musicVolume);
+      await strudelPlay(code);
+    } else if (currentScene && !gridMode) {
+      loadScene(currentScene);
+    }
+  });
+
   // ── Toggle with M key ──
   function show() {
     visible = true;
     panel.classList.remove('hidden');
     panel.classList.remove('faded');
-    if (!iframe) {
-      // First open — show grid, no scene loaded yet
-      showGrid();
-    }
+    updateCardStates();
   }
 
   function hide() {
@@ -609,6 +710,18 @@ export function initMusicPanel() {
   });
 
   closeBtn.addEventListener('click', hide);
+
+  // ── Auto-play Treasure Map on first forward press ──
+  let autoPlayed = false;
+  window.addEventListener('keydown', function onFirstForward(e) {
+    if (autoPlayed) return;
+    if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+      autoPlayed = true;
+      window.removeEventListener('keydown', onFirstForward);
+      // Play via strudel engine
+      toggleScene('Treasure Map');
+    }
+  });
 
   // ── Block ALL game input while interacting with panel ──
   panel.addEventListener('keydown', (e) => { e.stopPropagation(); });

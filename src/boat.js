@@ -245,7 +245,7 @@ export function createBoat(scene) {
   const deckMaterial = new THREE.MeshStandardMaterial({
     color: 0xb08040,
     map: makeWoodTexture(195, 160, 105, { grainCount: 65, knots: 4, planks: 12, repeatY: 2 }),
-    roughness: 0.95, metalness: 0.0,
+    roughness: 0.95, metalness: 0.0, side: THREE.DoubleSide,
   });
   const mastMaterial = new THREE.MeshStandardMaterial({
     color: 0x5a3215,
@@ -401,6 +401,7 @@ export function createBoat(scene) {
   deckShape.lineTo(0, -6.5);
 
   const deckGeo = new THREE.ShapeGeometry(deckShape, 1);
+  deckGeo.rotateZ(Math.PI); // flip 180° in-plane before laying flat
   const deck = new THREE.Mesh(deckGeo, deckMaterial);
   deck.rotation.x = -Math.PI / 2;
   deck.position.y = 1.05;

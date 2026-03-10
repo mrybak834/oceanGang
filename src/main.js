@@ -10,6 +10,7 @@ import { createShipAudio } from './shipAudio.js';
 import { initSkySettings } from './skySettings.js';
 import { createTradingSystem } from './trading.js';
 import { createPerfTracker } from './perfTracker.js';
+import { createTitleScreen } from './titleScreen.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
@@ -140,20 +141,23 @@ function init() {
   // Resize
   window.addEventListener('resize', onWindowResize);
 
-  // Music panel (Strudel)
-  initMusicPanel();
+  // Ship water audio (Web Audio synthesis tied to boat speed)
+  shipAudio = createShipAudio();
+
+  // Music panel (Strudel) — needs shipAudio for SFX volume slider
+  initMusicPanel(shipAudio);
 
   // Trading system (island barriers + trading menu)
   tradingSystem = createTradingSystem(scene, islandsResult.islandData, crateManager);
-
-  // Ship water audio (Web Audio synthesis tied to boat speed)
-  shipAudio = createShipAudio();
 
   // Sky/ocean settings popup (G key)
   initSkySettings(ocean, renderer);
 
   // Performance tracker (P key)
   perfTracker = createPerfTracker(renderer);
+
+  // Title screen
+  createTitleScreen();
 }
 
 function onWindowResize() {

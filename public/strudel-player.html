@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<script src="https://unpkg.com/@strudel/web@1.0.3"></script>
+<script>
+  var strudelInited = false;
+
+  window.addEventListener('message', function(e) {
+    if (!e.data || !e.data.type) return;
+    try {
+      if (e.data.type === 'play') {
+        if (!strudelInited) {
+          initStrudel();
+          strudelInited = true;
+        }
+        hush();
+        evaluate(e.data.code);
+      } else if (e.data.type === 'stop') {
+        hush();
+      }
+    } catch (err) {
+      console.error('Strudel player error:', err);
+    }
+  });
+
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'strudel-ready' }, '*');
+  }
+</script>
+</body>
+</html>

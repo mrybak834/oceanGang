@@ -103,7 +103,6 @@ export function createTradingSystem(scene, islandData, crateManager) {
 
   let menuOpen = false;
   let activeIsland = null;
-  let tradeCooldown = 0; // prevents instant reopen after close
 
   // ── Block game input when menu is open ──
   overlay.addEventListener('keydown', e => e.stopPropagation());
@@ -112,7 +111,6 @@ export function createTradingSystem(scene, islandData, crateManager) {
   overlay.addEventListener('wheel', e => e.stopPropagation());
 
   function openMenu(isl) {
-    if (tradeCooldown > 0) return;
     activeIsland = isl;
     menuOpen = true;
     overlay.classList.remove('trade-hidden');
@@ -123,7 +121,6 @@ export function createTradingSystem(scene, islandData, crateManager) {
     menuOpen = false;
     activeIsland = null;
     overlay.classList.add('trade-hidden');
-    tradeCooldown = 0.5;
   }
 
   elClose.addEventListener('click', closeMenu);
@@ -213,8 +210,6 @@ export function createTradingSystem(scene, islandData, crateManager) {
   // ── Per-frame update — collision + production ──
   function update(boat, delta, boatController) {
     lastBoatRef = boat;
-    // Tick cooldown
-    if (tradeCooldown > 0) tradeCooldown -= delta;
 
     // Production tick
     for (const isl of islands) {
@@ -224,8 +219,7 @@ export function createTradingSystem(scene, islandData, crateManager) {
       }
     }
 
-    // Collect stored materials when near a producing island
-    // + collision / barrier check
+    // Collision + barrier check
     let hitIsland = null;
 
     for (const isl of islands) {
@@ -240,7 +234,7 @@ export function createTradingSystem(scene, islandData, crateManager) {
         isl.stored -= amount;
       }
 
-      // Outer barrier ring — open trading menu
+      // Outer barrier ring — flag this island
       if (dist < isl.barrierR) {
         hitIsland = isl;
       }
@@ -253,12 +247,36 @@ export function createTradingSystem(scene, islandData, crateManager) {
         boat.position.x = isl.x + nx * innerR;
         boat.position.z = isl.z + nz * innerR;
         boatController.stop();
+
+        // Rotate boat sideways (tangent to island) so player can sail forward
+        const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(boat.quaternion);
+        const dot1 = fwd.x * (-nz) + fwd.z * nx;
+        const dot2 = fwd.x * nz + fwd.z * (-nx);
+        const tx = dot1 >= dot2 ? -nz : nz;
+        const tz = dot1 >= dot2 ? nx : -nx;
+        boat.rotation.y = Math.atan2(-tx, -tz);
       }
     }
 
     // Open menu when entering the ring
     if (hitIsland && !menuOpen) {
       openMenu(hitIsland);
+      // Clear held keys + stop momentum so the boat doesn't drift out of the ring
+      boatController.stop();
+      for (const k in boatController.keys) delete boatController.keys[k];
+
+      // Rotate boat sideways (tangent to island) so player faces along the coast
+      const dx2 = boat.position.x - hitIsland.x;
+      const dz2 = boat.position.z - hitIsland.z;
+      const d2 = Math.sqrt(dx2 * dx2 + dz2 * dz2) || 1;
+      const nx2 = dx2 / d2;
+      const nz2 = dz2 / d2;
+      const fwd2 = new THREE.Vector3(0, 0, -1).applyQuaternion(boat.quaternion);
+      const dot1 = fwd2.x * (-nz2) + fwd2.z * nx2;
+      const dot2 = fwd2.x * nz2 + fwd2.z * (-nx2);
+      const tx = dot1 >= dot2 ? -nz2 : nz2;
+      const tz = dot1 >= dot2 ? nx2 : -nx2;
+      boat.rotation.y = Math.atan2(-tx, -tz);
     }
 
     // Auto-close menu when boat leaves the ring
