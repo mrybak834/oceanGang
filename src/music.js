@@ -1,5 +1,6 @@
 // ─── Strudel Music Panel — scenes, toggle, drag, resize, fade ───
 import { initStrudel, evaluate as strudelEvaluate, hush as strudelHush } from '@strudel/web';
+import { registerSoundfontsLocal } from './strudelSoundfonts.js';
 
 const SCENES = {
   'Calm Shores': `// gentle surf, drifting ocarina, warm pads
@@ -30,13 +31,13 @@ let chimes = note("~ c6 ~ ~ ~ e6 ~ ~ ~ ~ g6 ~ ~ ~ a5 ~")
   .room(0.95)
 
 stack(surf, ocarina, pad, chimes)
-  .pianoroll({labels:1,active:'#88ccff',background:'transparent'})`,
+  .pianoroll({labels:1,active:'#88ccff',background:'transparent',fold:0})`,
 
   'Night Voyage': `// dark water, distant melody, deep mystery
 setcps(0.2)
 
 let nightSurf = sound("<brown pink>")
-  .gain(perlin.slow(32).range(0.03, 0.1))
+  .gain(perlin.slow(32).range(0.04, 0.12))
   .lpf(sine.slow(20).range(60, 300))
   .hpf(25)
   .room(0.97).roomsize(0.95)
@@ -46,16 +47,16 @@ let nightOcarina = note("eb4 ~ ~ g4 ~ bb4 ~ ~ ab4 ~ ~ eb4 ~ ~ ~ ~")
   .slow(6).lpf(1400)
   .attack(0.25).decay(0.8).sustain(0.3).release(2)
   .delay(0.55).delaytime(0.5).delayfeedback(0.55)
-  .room(0.95).gain(0.1)
+  .room(0.95).gain(0.12)
 
 let abyss = note("<[eb2,bb2] [ab2,eb3] [gb2,db3] [bb1,f2]>")
   .s("gm_pad_halo").slow(4)
   .lpf(perlin.range(200, 600).slow(24))
-  .gain(0.18).room(0.9).roomsize(0.85)
+  .gain(0.22).room(0.9).roomsize(0.85)
 
 let stars = note("~ ~ g6 ~ ~ ~ c7 ~ ~ ~ ~ eb6 ~ ~ ~ ~")
   .s("gm_fx_crystal").slow(12)
-  .gain(0.08)
+  .gain(0.1)
   .delay(0.6).delaytime(0.625).delayfeedback(0.6)
   .room(0.98)
 
@@ -90,7 +91,7 @@ let tropicBells = note("c6 ~ e6 ~ g6 ~ a6 ~")
   .room(0.9)
 
 stack(tropicWaves, tropicFlute, tropicPad, tropicBells)
-  .pianoroll({labels:1,active:'#ffaa44',background:'transparent'})`,
+  .pitchwheel({thickness:3,hapRadius:8,mode:'polygon'})`,
 
   'Storm Approaching': `// heavy swells, urgent melody, rumbling depths
 setcps(0.35)
@@ -171,65 +172,65 @@ let creak = note("~ ~ c3 ~ ~ ~ ~ ~ ~ e3 ~ ~ ~ ~ ~ ~")
   .gain(0.06).room(0.9)
 
 stack(concertina, accordionPad, hull, creak)
-  .pianoroll({labels:1,active:'#d4a574',background:'transparent'})`,
+  .wordfall()`,
 
   'Harbor Bells': `// distant port bells, lapping water, warm lantern glow
 setcps(0.18)
 
 let harborWater = sound("<brown pink>")
-  .gain(perlin.slow(28).range(0.03, 0.09))
+  .gain(perlin.slow(28).range(0.04, 0.12))
   .lpf(sine.slow(18).range(100, 500))
   .hpf(40)
   .room(0.93).roomsize(0.88)
 
 let bells = note("e5 ~ ~ ~ ~ b5 ~ ~ ~ ~ g5 ~ ~ ~ ~ ~")
   .s("gm_fx_crystal").slow(6)
-  .gain(perlin.slow(8).range(0.04, 0.12))
+  .gain(perlin.slow(8).range(0.05, 0.16))
   .delay(0.55).delaytime(0.5).delayfeedback(0.5)
   .room(0.95)
 
 let lantern = note("<[e3,g#3,b3] [a3,c#4,e4] [f#3,a3,c#4] [b2,d#3,f#3]>")
   .s("gm_pad_warm").slow(4)
   .lpf(perlin.range(350, 850).slow(20))
-  .gain(0.16).room(0.85).roomsize(0.8)
+  .gain(0.21).room(0.85).roomsize(0.8)
 
 let rigging = s("hh*4?0.08")
-  .gain(rand.range(0.01, 0.04))
+  .gain(rand.range(0.01, 0.05))
   .lpf(rand.range(2000, 6000)).hpf(1000)
   .delay(0.4).room(0.85)
 
 stack(harborWater, bells, lantern, rigging)
-  .pianoroll({labels:1,active:'#f0c674',background:'transparent'})`,
+  .punchcard({active:'#f0c674',background:'transparent'})`,
 
   'Moonlit Cove': `// still water, sparse crystal drips, deep mystery
 setcps(0.15)
 
 let stillWater = sound("brown")
-  .gain(perlin.slow(40).range(0.02, 0.06))
+  .gain(perlin.slow(40).range(0.03, 0.09))
   .lpf(sine.slow(24).range(50, 250))
   .hpf(20)
   .room(0.97).roomsize(0.95)
 
 let drips = note("~ c6 ~ ~ ~ ~ e6 ~ ~ ~ ~ ~ g5 ~ ~ ~")
   .s("gm_fx_crystal").slow(10)
-  .gain(perlin.slow(6).range(0.03, 0.09))
+  .gain(perlin.slow(6).range(0.05, 0.14))
   .delay(0.65).delaytime(0.625).delayfeedback(0.6)
   .room(0.98)
 
 let moonPad = note("<[c3,e3,b3] [a2,e3,g3] [f2,c3,a3] [g2,d3,b3]>")
   .s("gm_pad_halo").slow(6)
   .lpf(perlin.range(200, 550).slow(28))
-  .gain(0.14).room(0.95).roomsize(0.9)
+  .gain(0.21).room(0.95).roomsize(0.9)
 
 let deepPulse = note("<c1 ~ g1 ~>/4")
   .s("sine").slow(8)
   .attack(3).release(5)
   .lpf(100)
-  .gain(perlin.slow(20).range(0.04, 0.1))
+  .gain(perlin.slow(20).range(0.06, 0.15))
   .room(0.97)
 
 stack(stillWater, drips, moonPad, deepPulse)
-  .pianoroll({labels:1,active:'#7eb8da',background:'transparent'})`,
+  .spiral({steady:0.92,size:80,fade:1,thickness:4})`,
 
   'Rum & Reverie': `// warm plucked strings, mellow bass, tavern afterglow
 setcps(0.28)
@@ -239,27 +240,27 @@ let pluck = note("d4 ~ a4 ~ f#4 ~ e4 ~ d4 ~ b3 ~ a3 ~ ~ ~")
   .lpf(1800)
   .attack(0.005).decay(0.6).sustain(0.1).release(1)
   .delay(0.3).delaytime(0.25).delayfeedback(0.3)
-  .room(0.7).gain(0.16)
+  .room(0.7).gain(0.12)
 
 let bassWarm = note("d2 ~ ~ a2 ~ ~ f#2 ~ ~ ~ e2 ~ ~ ~ ~ ~")
   .s("triangle").slow(4)
   .lpf(400)
   .attack(0.05).decay(0.4).sustain(0.6).release(0.8)
-  .gain(0.3).room(0.5)
+  .gain(0.22).room(0.5)
 
 let warmPad = note("<[d3,f#3,a3] [g3,b3,d4] [a2,c#3,e3] [b2,d3,f#3]>")
   .s("gm_pad_warm").slow(3)
   .lpf(sine.range(400, 1000).slow(16))
-  .gain(0.18).room(0.75).roomsize(0.65)
+  .gain(0.14).room(0.75).roomsize(0.65)
 
 let murmur = sound("pink")
-  .gain(perlin.slow(16).range(0.01, 0.04))
+  .gain(perlin.slow(16).range(0.01, 0.03))
   .lpf(perlin.range(200, 800).slow(10))
   .hpf(80)
   .room(0.7)
 
 stack(pluck, bassWarm, warmPad, murmur)
-  .pianoroll({labels:1,active:'#c9956b',background:'transparent'})`,
+  .scope({color:'#c9956b',thickness:3,scale:0.3})`,
 
   'Foghorn Drift': `// deep foghorn drones, distant bells, ghostly atmosphere
 setcps(0.12)
@@ -269,57 +270,70 @@ let foghorn = note("<c1 ~ ~ eb1 ~ ~ g1 ~ ~ ~ ~ ~>/2")
   .lpf(sine.slow(16).range(40, 120))
   .attack(3).release(5)
   .room(0.98).roomsize(0.97)
-  .gain(perlin.slow(20).range(0.05, 0.15))
+  .gain(perlin.slow(20).range(0.07, 0.2))
 
 let ghostPad = note("<[c3,g3,bb3] [eb3,bb3,db4] [ab2,eb3,gb3] [bb2,f3,ab3]>")
   .s("gm_pad_halo").slow(6)
   .lpf(perlin.range(150, 500).slow(24))
-  .gain(0.12).room(0.96).roomsize(0.92)
+  .gain(0.16).room(0.96).roomsize(0.92)
 
 let fog = sound("<brown pink>")
-  .gain(perlin.slow(32).range(0.03, 0.08))
+  .gain(perlin.slow(32).range(0.04, 0.1))
   .lpf(sine.slow(20).range(60, 350))
   .hpf(20)
   .room(0.97).roomsize(0.95)
 
 let distantBell = note("~ ~ ~ ~ ~ eb6 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~")
   .s("gm_fx_crystal").slow(12)
-  .gain(0.06)
+  .gain(0.08)
   .delay(0.7).delaytime(0.75).delayfeedback(0.6)
   .room(0.98)
 
 stack(foghorn, ghostPad, fog, distantBell)
-  .spiral({steady:0.98})`,
+  .fscope({color:'#8899bb',scale:0.4})`,
 
   'Treasure Map': `// music box melody, mysterious pads, adventure sparkle
-setcps(0.25)
+setcps(0.50)
 
-let musicBox = note("e5 g5 b5 ~ a5 f#5 ~ e5 d5 ~ b4 ~ a4 ~ ~ ~")
+let musicBox = note("e5 g5 b5 a5 g5 f#5 e5 d5 e5 b4 d5 e5 a4 b4 g4 ~")
   .s("sine").slow(4)
   .lpf(3000)
   .attack(0.003).decay(0.5).sustain(0.05).release(1.2)
   .delay(0.4).delaytime(0.375).delayfeedback(0.4)
-  .room(0.85).gain(0.15)
+  .room(0.85).gain(0.11)
+
+let musicBox2 = note("~ b5 ~ e6 d6 ~ b5 a5 ~ g5 a5 b5 ~ e5 ~ d5")
+  .s("sine").slow(4)
+  .lpf(2500)
+  .attack(0.003).decay(0.4).sustain(0.05).release(1)
+  .delay(0.45).delaytime(0.25).delayfeedback(0.35)
+  .room(0.85).gain(0.07)
+
+let bassPluck = note("e3 ~ ~ b2 ~ ~ a2 ~ ~ ~ d3 ~ ~ ~ g2 ~")
+  .s("triangle").slow(4)
+  .lpf(600)
+  .attack(0.005).decay(0.4).sustain(0.2).release(0.8)
+  .gain(0.15).room(0.6)
 
 let mysteryPad = note("<[e3,g3,b3] [c3,e3,a3] [d3,f#3,a3] [b2,e3,g3]>")
   .s("gm_pad_halo").slow(3)
   .lpf(perlin.range(300, 800).slow(16))
-  .gain(0.17).room(0.8).roomsize(0.75)
+  .gain(0.12).room(0.8).roomsize(0.75)
 
-let sparkle = note("~ ~ b6 ~ ~ ~ ~ e7 ~ ~ ~ ~ g6 ~ ~ ~")
+let sparkle = note("~ ~ b6 ~ ~ e7 ~ ~ g6 ~ ~ ~ d7 ~ a6 ~")
   .s("gm_fx_crystal").slow(8)
-  .gain(0.07)
+  .gain(0.05)
   .delay(0.5).delaytime(0.5).delayfeedback(0.55)
   .room(0.92)
 
 let seaBreeze = sound("pink")
-  .gain(perlin.slow(24).range(0.02, 0.06))
+  .gain(perlin.slow(24).range(0.01, 0.04))
   .lpf(sine.slow(14).range(120, 600))
   .hpf(60)
   .room(0.88).roomsize(0.8)
 
-stack(musicBox, mysteryPad, sparkle, seaBreeze)
-  .pianoroll({labels:1,active:'#e8c170',background:'transparent'})`,
+stack(musicBox, musicBox2, bassPluck, mysteryPad, sparkle, seaBreeze)
+  .pianoroll({labels:1,active:'#e8c170',background:'transparent',vertical:1})`,
 
   // ─── Community patches (credited, open-source) ───
 
@@ -342,29 +356,29 @@ let filterBass = note("[c eb g <f bb>](3,8,<0 1>)".sub(12))
   .room(1)
   .juxBy(0.5, rev)
   .sometimes(add(note(12)))
-  .gain(0.4)
+  .gain(0.34)
 
 let deepDrone = note("<c1 g1 eb1 bb0>")
   .s("sine").slow(8)
   .attack(4).release(6)
   .lpf(perlin.range(60, 200).slow(24))
-  .gain(perlin.slow(16).range(0.05, 0.15))
+  .gain(perlin.slow(16).range(0.04, 0.12))
   .room(0.98).roomsize(0.95)
 
 let shimmer = note("~ c6 ~ ~ g5 ~ ~ eb6 ~ ~ ~ bb5 ~ ~ ~ ~")
   .s("gm_fx_crystal").slow(10)
-  .gain(0.06)
+  .gain(0.05)
   .delay(0.6).delaytime(0.625).delayfeedback(0.65)
   .room(0.97)
 
 let haze = sound("<brown pink>")
-  .gain(sine.slow(32).range(0.02, 0.07))
+  .gain(sine.slow(32).range(0.02, 0.06))
   .lpf(perlin.slow(16).range(80, 400))
   .hpf(30)
   .room(0.95).roomsize(0.9)
 
 stack(filterBass, deepDrone, shimmer, haze)
-  .pianoroll({labels:1,active:'#66ffaa',background:'transparent'})`,
+  .spectrum({thickness:2})`,
 
   'Lo-Fi Horizon': `// Lo-fi chill beat with layered atmosphere
 // Source: Nicholas Griffin — nicholasgriffin.dev
@@ -377,27 +391,27 @@ setcps(0.34)
 let drums = s("bd*4,hh*8,[~ cp]!2")
   .bank("RolandTR707")
   .sometimesBy(0.2, x => x.gain(0.8))
-  .room(0.4).gain(0.45)
+  .room(0.4).gain(0.16)
 
 // warm chord pads — gentle variation every 4 bars
 let chords = note("<[c3,e3,g3,b3] [f3,a3,c4,e4] [a2,c3,e3,g3] [g2,b2,d3,f3]>")
   .s("gm_pad_warm").slow(2)
   .lpf(800)
-  .room(0.7).gain(0.35)
+  .room(0.7).gain(0.12)
 
 // mellow bass with subtle movement
 let bass = note("c2 ~ e2 ~ g2 ~ e2 ~")
   .s("triangle").slow(2)
   .lpf(200)
   .attack(0.05).decay(0.3).sustain(0.6).release(0.4)
-  .gain(0.4)
+  .gain(0.14)
 
 // soft synth pad with filter automation
 let pad = note("<[c3,g3] [f3,c4] [a2,e3] [g2,d3]>")
   .s("sawtooth").slow(4)
   .lpf(sine.range(200, 800).slow(16))
   .attack(1).release(2)
-  .room(0.8).gain(0.2)
+  .room(0.8).gain(0.07)
 
 // vinyl crackle atmosphere
 let crackle = sound("white")
@@ -407,7 +421,7 @@ let crackle = sound("white")
   .room(0.6)
 
 stack(drums, chords, bass, pad, crackle)
-  .pianoroll({labels:1,active:'#e8a87c',background:'transparent'})`,
+  .pianoroll({labels:1,active:'#e8a87c',background:'transparent',smear:1})`,
 
   'Dark Frequencies': `// Dense electronic layers with atmospheric texture
 // Source: Nicholas Griffin — nicholasgriffin.dev
@@ -419,7 +433,7 @@ setcps(0.27)
 // punchy kick foundation with syncopated accents
 let kick = s("bd*4")
   .bank("RolandTR909")
-  .gain("1 0.9 1 [0.9 1.1]")
+  .gain("0.2 0.18 0.2 [0.18 0.22]")
   .shape(0.3).room(0.1)
 
 // deep rolling bassline with filter modulation
@@ -428,12 +442,12 @@ let sub = note("c2 [c2 g2] eb2 [f2 eb2] c2 [c2 bb2] f2 [g2 f2]")
   .lpf(sine.slow(4).range(80, 400))
   .shape(0.4).distort(0.15)
   .lpf(perlin.slow(16).range(80, 1200))
-  .gain(0.5)
+  .gain(0.1)
 
 // evolving hats with perlin gain
 let hats = s("hh*8")
   .bank("RolandTR909")
-  .gain(perlin.slow(8).range(0.3, 0.7))
+  .gain(perlin.slow(8).range(0.06, 0.14))
   .hpf(8000)
   .pan(sine.slow(3).range(0.3, 0.7))
   .room(0.2)
@@ -441,7 +455,7 @@ let hats = s("hh*8")
 // rhythmic stabs with filter sweep
 let lead = note("<[d4 ~] [~ f4] [~ ~] [g4 ab4]>*2")
   .s("square")
-  .gain(0.35)
+  .gain(0.07)
   .shape(0.5).crush(6)
   .lpf(perlin.slow(8).range(400, 4000))
   .delay(0.125).delayfeedback(0.4)
@@ -451,18 +465,18 @@ let lead = note("<[d4 ~] [~ f4] [~ ~] [g4 ab4]>*2")
 // clap accents with fills
 let claps = s("[~ cp] ~ [~ cp] <~ [cp sd]*2>")
   .bank("RolandTR909")
-  .gain(0.55)
+  .gain(0.11)
   .shape(0.2).room(0.3).hpf(200)
 
 // dark atmospheric noise layer
 let atmosphere = sound("<brown pink>")
-  .gain(sine.slow(32).range(0.03, 0.1))
+  .gain(sine.slow(32).range(0.01, 0.03))
   .lpf(perlin.slow(16).range(100, 600))
   .hpf(40)
   .room(0.9).roomsize(0.8)
 
 stack(kick, sub, hats, lead, claps, atmosphere)
-  .scope({color:'#aa44ff',thickness:2})`,
+  .spiral({steady:0.96,logSpiral:1,thickness:3})`,
 };
 
 function makeStrudelURL(code) {
@@ -483,7 +497,9 @@ let strudelInitPromise = null;
 function ensureStrudel() {
   if (strudelReady) return Promise.resolve();
   if (strudelInitPromise) return strudelInitPromise;
-  strudelInitPromise = initStrudel().then(() => { strudelReady = true; });
+  strudelInitPromise = initStrudel({
+    prebake: () => registerSoundfontsLocal(),
+  }).then(() => { strudelReady = true; });
   return strudelInitPromise;
 }
 
@@ -597,7 +613,7 @@ export function initMusicPanel(shipAudio) {
     updateCardStates();
 
     try {
-      let code = stripViz(SCENES[name]);
+      let code = SCENES[name];
       if (musicVolume < 1.0) code = scaleGains(code, musicVolume);
       await strudelPlay(code);
       isPlaying = true;
@@ -677,7 +693,7 @@ export function initMusicPanel(shipAudio) {
   musicVolSlider.addEventListener('change', async (e) => {
     musicVolume = e.target.value / 100;
     if (currentScene && isPlaying && strudelReady) {
-      let code = stripViz(SCENES[currentScene]);
+      let code = SCENES[currentScene];
       if (musicVolume < 1.0) code = scaleGains(code, musicVolume);
       await strudelPlay(code);
     } else if (currentScene && !gridMode) {

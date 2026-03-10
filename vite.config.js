@@ -29,4 +29,7 @@ function perfReportPlugin() {
 
 export default defineConfig({
   plugins: [perfReportPlugin()],
+  optimizeDeps: {
+    force: true,
+  },
 });
