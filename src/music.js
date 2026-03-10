@@ -1,8 +1,9 @@
 // ─── Strudel Music Panel — scenes, toggle, drag, resize, fade ───
 import { initStrudel, evaluate as strudelEvaluate, hush as strudelHush } from '@strudel/web';
+import '@strudel/repl';
 import { registerSoundfontsLocal } from './strudelSoundfonts.js';
 
-const SCENES = {
+export const SCENES = {
   'Calm Shores': `// gentle surf, drifting ocarina, warm pads
 setcps(0.25)
 
@@ -30,8 +31,7 @@ let chimes = note("~ c6 ~ ~ ~ e6 ~ ~ ~ ~ g6 ~ ~ ~ a5 ~")
   .delay(0.5).delaytime(0.5).delayfeedback(0.5)
   .room(0.95)
 
-stack(surf, ocarina, pad, chimes)
-  .pianoroll({labels:1,active:'#88ccff',background:'transparent',fold:0})`,
+stack(surf, ocarina, pad, chimes)`,
 
   'Night Voyage': `// dark water, distant melody, deep mystery
 setcps(0.2)
@@ -60,8 +60,7 @@ let stars = note("~ ~ g6 ~ ~ ~ c7 ~ ~ ~ ~ eb6 ~ ~ ~ ~")
   .delay(0.6).delaytime(0.625).delayfeedback(0.6)
   .room(0.98)
 
-stack(nightSurf, nightOcarina, abyss, stars)
-  .spiral({steady:0.96})`,
+stack(nightSurf, nightOcarina, abyss, stars)`,
 
   'Tropical Breeze': `// bright sun, playful ocarina, dancing light
 setcps(0.3)
@@ -90,8 +89,7 @@ let tropicBells = note("c6 ~ e6 ~ g6 ~ a6 ~")
   .delay(0.4).delaytime(0.375).delayfeedback(0.4)
   .room(0.9)
 
-stack(tropicWaves, tropicFlute, tropicPad, tropicBells)
-  .pitchwheel({thickness:3,hapRadius:8,mode:'polygon'})`,
+stack(tropicWaves, tropicFlute, tropicPad, tropicBells)`,
 
   'Storm Approaching': `// heavy swells, urgent melody, rumbling depths
 setcps(0.35)
@@ -137,8 +135,7 @@ let crackles = s("hh*16?0.15")
   .lpf(rand.range(1000, 5000))
   .delay(0.4).room(0.8)
 
-stack(stormSurf, stormOcarina, thunder, stormWind, candy, crackles)
-  .scope({color:'#ff4444',thickness:2})`,
+stack(stormSurf, stormOcarina, thunder, stormWind, candy, crackles)`,
 
   // ─── Ambient Pirate Soundscapes ───
 
@@ -171,8 +168,7 @@ let creak = note("~ ~ c3 ~ ~ ~ ~ ~ ~ e3 ~ ~ ~ ~ ~ ~")
   .attack(0.3).decay(1.5).sustain(0).release(0.5)
   .gain(0.06).room(0.9)
 
-stack(concertina, accordionPad, hull, creak)
-  .wordfall()`,
+stack(concertina, accordionPad, hull, creak)`,
 
   'Harbor Bells': `// distant port bells, lapping water, warm lantern glow
 setcps(0.18)
@@ -199,8 +195,7 @@ let rigging = s("hh*4?0.08")
   .lpf(rand.range(2000, 6000)).hpf(1000)
   .delay(0.4).room(0.85)
 
-stack(harborWater, bells, lantern, rigging)
-  .punchcard({active:'#f0c674',background:'transparent'})`,
+stack(harborWater, bells, lantern, rigging)`,
 
   'Moonlit Cove': `// still water, sparse crystal drips, deep mystery
 setcps(0.15)
@@ -229,8 +224,7 @@ let deepPulse = note("<c1 ~ g1 ~>/4")
   .gain(perlin.slow(20).range(0.06, 0.15))
   .room(0.97)
 
-stack(stillWater, drips, moonPad, deepPulse)
-  .spiral({steady:0.92,size:80,fade:1,thickness:4})`,
+stack(stillWater, drips, moonPad, deepPulse)`,
 
   'Rum & Reverie': `// warm plucked strings, mellow bass, tavern afterglow
 setcps(0.28)
@@ -259,8 +253,7 @@ let murmur = sound("pink")
   .hpf(80)
   .room(0.7)
 
-stack(pluck, bassWarm, warmPad, murmur)
-  .scope({color:'#c9956b',thickness:3,scale:0.3})`,
+stack(pluck, bassWarm, warmPad, murmur)`,
 
   'Foghorn Drift': `// deep foghorn drones, distant bells, ghostly atmosphere
 setcps(0.12)
@@ -289,51 +282,73 @@ let distantBell = note("~ ~ ~ ~ ~ eb6 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~")
   .delay(0.7).delaytime(0.75).delayfeedback(0.6)
   .room(0.98)
 
-stack(foghorn, ghostPad, fog, distantBell)
-  .fscope({color:'#8899bb',scale:0.4})`,
+stack(foghorn, ghostPad, fog, distantBell)`,
 
-  'Treasure Map': `// music box melody, mysterious pads, adventure sparkle
+  'Treasure Map': `// music box melody — flowing adventure with gentle evolving sections
 setcps(0.50)
 
-let musicBox = note("e5 g5 b5 a5 g5 f#5 e5 d5 e5 b4 d5 e5 a4 b4 g4 ~")
+// Main melody: the original phrase, then gentle variations that stay in E minor
+// Each variation keeps the same rhythm and contour, just explores new notes
+let musicBox = note("<[e5 g5 b5 a5 g5 f#5 e5 d5 e5 b4 d5 e5 a4 b4 g4 ~] [e5 g5 b5 a5 g5 f#5 e5 d5 e5 b4 d5 e5 a4 b4 g4 ~] [e5 a5 b5 g5 a5 f#5 e5 d5 e5 b4 d5 g5 a4 b4 e5 ~] [e5 g5 b5 d6 b5 a5 g5 e5 d5 b4 d5 e5 a4 b4 g4 ~]>")
   .s("sine").slow(4)
   .lpf(3000)
   .attack(0.003).decay(0.5).sustain(0.05).release(1.2)
   .delay(0.4).delaytime(0.375).delayfeedback(0.4)
   .room(0.85).gain(0.11)
 
-let musicBox2 = note("~ b5 ~ e6 d6 ~ b5 a5 ~ g5 a5 b5 ~ e5 ~ d5")
+// Counter-melody: weaves around the main melody, same key throughout
+let musicBox2 = note("<[~ b5 ~ e6 d6 ~ b5 a5 ~ g5 a5 b5 ~ e5 ~ d5] [~ b5 ~ e6 d6 ~ b5 a5 ~ g5 a5 b5 ~ e5 ~ d5] [~ a5 ~ d6 b5 ~ a5 g5 ~ e5 g5 a5 ~ d5 ~ b4] [~ d6 ~ e6 d6 ~ b5 g5 ~ e5 g5 b5 ~ a5 ~ g5]>")
   .s("sine").slow(4)
   .lpf(2500)
   .attack(0.003).decay(0.4).sustain(0.05).release(1)
   .delay(0.45).delaytime(0.25).delayfeedback(0.35)
   .room(0.85).gain(0.07)
 
+// Bass: stays rooted in E minor, gentle movement between E, B, A, D
 let bassPluck = note("e3 ~ ~ b2 ~ ~ a2 ~ ~ ~ d3 ~ ~ ~ g2 ~")
   .s("triangle").slow(4)
   .lpf(600)
   .attack(0.005).decay(0.4).sustain(0.2).release(0.8)
   .gain(0.15).room(0.6)
 
+// Pads: original progression, very slow cycling for smooth drift
 let mysteryPad = note("<[e3,g3,b3] [c3,e3,a3] [d3,f#3,a3] [b2,e3,g3]>")
   .s("gm_pad_halo").slow(3)
   .lpf(perlin.range(300, 800).slow(16))
   .gain(0.12).room(0.8).roomsize(0.75)
 
+// Sparkle: sparse and constant, the same gentle shimmer throughout
 let sparkle = note("~ ~ b6 ~ ~ e7 ~ ~ g6 ~ ~ ~ d7 ~ a6 ~")
   .s("gm_fx_crystal").slow(8)
   .gain(0.05)
   .delay(0.5).delaytime(0.5).delayfeedback(0.55)
   .room(0.92)
 
+// Sea breeze atmosphere
 let seaBreeze = sound("pink")
   .gain(perlin.slow(24).range(0.01, 0.04))
   .lpf(sine.slow(14).range(120, 600))
   .hpf(60)
   .room(0.88).roomsize(0.8)
 
-stack(musicBox, musicBox2, bassPluck, mysteryPad, sparkle, seaBreeze)
-  .pianoroll({labels:1,active:'#e8c170',background:'transparent',vertical:1})`,
+// Deep sub drone on E — very slow, barely perceptible, adds warmth
+let drone = note("e2")
+  .s("sine").slow(16)
+  .attack(4).release(6)
+  .lpf(perlin.range(60, 150).slow(20))
+  .gain(perlin.slow(16).range(0.03, 0.07))
+  .room(0.95).roomsize(0.9)
+
+// Gentle high pad — slowly evolving color, appears and fades over long cycles
+let shimmer = note("<[b4,e5] [a4,d5] [g4,b4] [e4,a4]>")
+  .s("sine").slow(8)
+  .lpf(sine.slow(20).range(800, 2000))
+  .attack(1).decay(2).sustain(0.3).release(3)
+  .gain(perlin.slow(24).range(0.02, 0.06))
+  .delay(0.4).delaytime(0.5).delayfeedback(0.45)
+  .room(0.9).roomsize(0.85)
+
+stack(musicBox, musicBox2, bassPluck, mysteryPad, sparkle, seaBreeze, drone, shimmer)`,
 
   // ─── Community patches (credited, open-source) ───
 
@@ -377,8 +392,7 @@ let haze = sound("<brown pink>")
   .hpf(30)
   .room(0.95).roomsize(0.9)
 
-stack(filterBass, deepDrone, shimmer, haze)
-  .spectrum({thickness:2})`,
+stack(filterBass, deepDrone, shimmer, haze)`,
 
   'Lo-Fi Horizon': `// Lo-fi chill beat with layered atmosphere
 // Source: Nicholas Griffin — nicholasgriffin.dev
@@ -420,8 +434,7 @@ let crackle = sound("white")
   .gain(perlin.slow(12).range(0.005, 0.02))
   .room(0.6)
 
-stack(drums, chords, bass, pad, crackle)
-  .pianoroll({labels:1,active:'#e8a87c',background:'transparent',smear:1})`,
+stack(drums, chords, bass, pad, crackle)`,
 
   'Dark Frequencies': `// Dense electronic layers with atmospheric texture
 // Source: Nicholas Griffin — nicholasgriffin.dev
@@ -475,13 +488,8 @@ let atmosphere = sound("<brown pink>")
   .hpf(40)
   .room(0.9).roomsize(0.8)
 
-stack(kick, sub, hats, lead, claps, atmosphere)
-  .spiral({steady:0.96,logSpiral:1,thickness:3})`,
+stack(kick, sub, hats, lead, claps, atmosphere)`,
 };
-
-function makeStrudelURL(code) {
-  return `https://strudel.cc/#${encodeURIComponent(btoa(unescape(encodeURIComponent(code))))}`;
-}
 
 // Scale numeric .gain(N) values by a volume multiplier
 function scaleGains(code, vol) {
@@ -535,14 +543,109 @@ export function initMusicPanel(shipAudio) {
   const sfxVolSlider = document.getElementById('sfx-vol');
 
   let visible = false;
-  let iframe = null;
+  let embeddedRepl = null;
+  let replReadyPromise = null;
   let currentScene = null;
   let gridMode = true; // start in grid mode
   let musicVolume = 1.0;
   let isPlaying = false;
   let isLoading = false;
+  const sceneDrafts = Object.fromEntries(Object.entries(SCENES));
 
   const sceneNames = Object.keys(SCENES);
+
+  function getSceneCode(name, { applyVolume = false } = {}) {
+    let code = sceneDrafts[name] || SCENES[name];
+    if (applyVolume && musicVolume < 1.0) {
+      code = scaleGains(code, musicVolume);
+    }
+    return code;
+  }
+
+  function persistEditorDraft() {
+    if (embeddedRepl?.editor && currentScene) {
+      sceneDrafts[currentScene] = embeddedRepl.editor.code;
+    }
+  }
+
+  function syncEditorState(code, playing) {
+    if (!currentScene) return;
+    sceneDrafts[currentScene] = code;
+    isPlaying = playing;
+    isLoading = false;
+    updateCardStates();
+  }
+
+  function installReplHooks(repl) {
+    const editor = repl.editor;
+    if (!editor || editor.__oceanGangHooked) return;
+
+    const originalEvaluate = editor.evaluate.bind(editor);
+    editor.evaluate = async (autostart = true) => {
+      const code = editor.code;
+      currentScene = currentScene || sceneSelect.value;
+      sceneSelect.value = currentScene;
+      isLoading = true;
+      updateCardStates();
+      try {
+        const result = await originalEvaluate(autostart);
+        syncEditorState(code, autostart);
+        return result;
+      } catch (err) {
+        sceneDrafts[currentScene] = code;
+        isPlaying = false;
+        isLoading = false;
+        updateCardStates();
+        throw err;
+      }
+    };
+
+    const originalStop = editor.stop.bind(editor);
+    editor.stop = async () => {
+      const result = await originalStop();
+      syncEditorState(editor.code, false);
+      return result;
+    };
+
+    editor.__oceanGangHooked = true;
+  }
+
+  async function ensureEmbeddedRepl() {
+    if (embeddedRepl?.editor) return embeddedRepl;
+    if (replReadyPromise) return replReadyPromise;
+
+    replReadyPromise = customElements.whenDefined('strudel-editor').then(async () => {
+      if (!embeddedRepl) {
+        embeddedRepl = document.createElement('strudel-editor');
+        embeddedRepl.className = 'music-strudel-editor';
+        editorWrap.replaceChildren(embeddedRepl);
+      }
+
+      const deadline = performance.now() + 5000;
+      while (!embeddedRepl.editor) {
+        if (performance.now() > deadline) {
+          throw new Error('Timed out while booting embedded Strudel REPL');
+        }
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+
+      embeddedRepl.nextElementSibling?.classList.add('music-repl-root');
+      installReplHooks(embeddedRepl);
+      return embeddedRepl;
+    });
+
+    return replReadyPromise;
+  }
+
+  async function stopEmbeddedRepl() {
+    if (embeddedRepl?.editor) {
+      try {
+        await embeddedRepl.editor.stop();
+      } catch (err) {
+        console.warn('Failed to stop embedded Strudel REPL:', err);
+      }
+    }
+  }
 
   // ── Populate scene dropdown from SCENES ──
   sceneSelect.innerHTML = '';
@@ -613,8 +716,7 @@ export function initMusicPanel(shipAudio) {
     updateCardStates();
 
     try {
-      let code = SCENES[name];
-      if (musicVolume < 1.0) code = scaleGains(code, musicVolume);
+      let code = getSceneCode(name, { applyVolume: true });
       await strudelPlay(code);
       isPlaying = true;
     } catch (err) {
@@ -629,14 +731,15 @@ export function initMusicPanel(shipAudio) {
   // ── Show/hide grid vs editor ──
   function showGrid() {
     gridMode = true;
+    persistEditorDraft();
+    stopEmbeddedRepl();
     presetGrid.classList.remove('grid-hidden');
     editorWrap.style.display = 'none';
-    if (iframe) { iframe.remove(); iframe = null; }
     gridBtn.classList.add('active');
     updateCardStates();
   }
 
-  function showEditor(keepAudio) {
+  async function showEditor(keepAudio) {
     gridMode = false;
     if (!keepAudio && isPlaying) {
       strudelStop();
@@ -647,26 +750,20 @@ export function initMusicPanel(shipAudio) {
     editorWrap.style.display = '';
     gridBtn.classList.remove('active');
     const sceneName = currentScene || sceneSelect.value;
-    if (sceneName) loadScene(sceneName);
+    if (sceneName) await loadScene(sceneName);
   }
 
   buildGrid();
   showGrid();
 
   // ── Load scene into iframe ──
-  function loadScene(name) {
+  async function loadScene(name) {
+    persistEditorDraft();
     currentScene = name;
     sceneSelect.value = name;
-    let code = SCENES[name];
-    if (musicVolume < 1.0) code = scaleGains(code, musicVolume);
-    const url = makeStrudelURL(code);
-
-    if (iframe) iframe.remove();
-    iframe = document.createElement('iframe');
-    iframe.src = url;
-    iframe.allow = 'autoplay';
-    iframe.style.cssText = 'width:100%;height:100%;border:none;display:block;';
-    editorWrap.appendChild(iframe);
+    await stopEmbeddedRepl();
+    const repl = await ensureEmbeddedRepl();
+    repl.setAttribute('code', sceneDrafts[name] || SCENES[name]);
   }
 
   // ── Scene selector ──
@@ -674,7 +771,6 @@ export function initMusicPanel(shipAudio) {
     if (gridMode) {
       toggleScene(e.target.value);
     } else {
-      currentScene = e.target.value;
       loadScene(e.target.value);
     }
   });
@@ -693,11 +789,8 @@ export function initMusicPanel(shipAudio) {
   musicVolSlider.addEventListener('change', async (e) => {
     musicVolume = e.target.value / 100;
     if (currentScene && isPlaying && strudelReady) {
-      let code = SCENES[currentScene];
-      if (musicVolume < 1.0) code = scaleGains(code, musicVolume);
+      let code = getSceneCode(currentScene, { applyVolume: true });
       await strudelPlay(code);
-    } else if (currentScene && !gridMode) {
-      loadScene(currentScene);
     }
   });
 

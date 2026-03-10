@@ -461,11 +461,22 @@ canvas {
   background: #0d0d1a;
 }
 
-.music-editor-wrap iframe {
+.music-strudel-editor {
+  display: none;
+}
+
+.music-repl-root {
   width: 100%;
   height: 100%;
-  border: none;
   display: block;
+}
+
+.music-repl-root .cm-editor {
+  height: 100%;
+}
+
+.music-repl-root .cm-scroller {
+  min-height: 100%;
 }
 
 /* ─── Sky & Ocean Settings Panel ─── */

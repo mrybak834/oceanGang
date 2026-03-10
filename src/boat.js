@@ -991,7 +991,7 @@ export function createBoatController() {
     // Combine wave tilt with visual heel + jump pitch
     let jumpPitch = 0;
     if (isJumping) {
-      jumpPitch = -(jumpVelocity / jumpLaunchSpeed) * 0.45;
+      jumpPitch = (jumpVelocity / jumpLaunchSpeed) * 0.45;
     } else if (isSubmerged) {
       jumpPitch = submersionY * 0.08;
     }

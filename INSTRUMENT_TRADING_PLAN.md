@@ -1,217 +1,361 @@
 # Instrument Trading System — Implementation Plan
 
-## Concept
+## Core Concept
 
-Players trade resources (Wood, Stone, Iron, Gold) at islands to unlock instrument layers in Strudel music patches. Each patch starts sparse (only ambient layer) and grows richer as instruments are purchased. Unlocked instruments expose tweakable parameters (gain, filter, delay, reverb) as UI sliders.
+The system is **fully dynamic** — it parses Strudel patch code strings to discover instruments automatically. No manual instrument definitions. Change a patch, the instrument inventory changes. The game is a roguelike of music layers.
 
----
-
-## Data Architecture
-
-### Instrument Registry (`src/instruments.js`)
-
-Each instrument is defined by:
-
-| Field | Description |
-|---|---|
-| `id` | Unique key, e.g. `"treasureMap.musicBox"` |
-| `sceneId` | Which SCENE it belongs to |
-| `varName` | The `let` variable name in the Strudel code string |
-| `displayName` | Human-readable name |
-| `tier` | 0 (free), 1, 2, or 3 |
-| `cost` | `{ Wood: N, Stone: N, Iron: N, Gold: N }` |
-| `unlocked` | Boolean, starts `true` for tier-0 |
-| `tweakableParams` | Array of `{ name, label, min, max, step, default }` |
-| `paramValues` | Current override values |
-
-### Progression Tiers
-
-- **Tier 0 (free)**: Ambient/base layers — sea breeze, surf, fog, crackle. Always playing.
-- **Tier 1**: Bass and harmonic foundation. Cost: Wood + Stone.
-- **Tier 2**: Primary melodies. Cost: Stone + Iron.
-- **Tier 3**: Sparkle/accent layers. Cost: Iron + Gold.
-
-### Example: Treasure Map
-
-| Instrument | Tier | Cost |
-|---|---|---|
-| seaBreeze | 0 | free |
-| bassPluck | 1 | 8 Wood, 4 Stone |
-| mysteryPad | 1 | 6 Wood, 6 Stone |
-| musicBox | 2 | 6 Stone, 8 Iron |
-| musicBox2 | 2 | 8 Stone, 6 Iron |
-| sparkle | 3 | 6 Iron, 10 Gold |
+**Key principles:**
+- Every `let varName = ...` block in a patch IS an instrument
+- The parser extracts: variable name, synth/sound type, note pattern, and all chained params
+- Costs are auto-generated from instrument complexity (more params = more expensive)
+- Islands are vendors — each island stocks instruments from a random scene
+- Editing a patch in the live Strudel editor = crafting a new instrument (costs resources)
+- First instrument in each patch is always free (the ambient bed)
 
 ---
 
-## Step-by-Step Implementation
+## Step 1: Strudel Patch Parser
 
-### Step 1: Create Instrument Registry
+**File**: New `src/patchParser.js`
+
+Parse a Strudel code string and return structured instrument data.
+
+**Input**: Raw code string like `SCENES['Treasure Map']`
+
+**Output**: Array of instrument objects:
+```js
+[
+  {
+    varName: 'musicBox',
+    codeBlock: 'let musicBox = note("e5 g5...").s("sine")...',
+    synthType: 'sine',           // extracted from .s("...") or sound("...")
+    hasNotes: true,              // has note("...")
+    params: {                    // all chained method calls found
+      gain: { value: 0.15, dynamic: false },
+      lpf: { value: 3000, dynamic: false },
+      delay: { value: 0.4, dynamic: false },
+      room: { value: 0.85, dynamic: false },
+      attack: { value: 0.003, dynamic: false },
+      // etc.
+    },
+    displayName: 'Music Box',   // varName → Title Case
+    complexity: 8,               // number of chained params (drives cost)
+  },
+  // ...
+]
+```
+
+**Parsing approach:**
+1. Strip `setcps(...)` line and `stack(...)` line, extract the var names from `stack()`
+2. Split remaining code on `/^let\s+/m` to get individual blocks
+3. For each block: extract varName, find `.s("...")` or `sound("...")`, find `note("...")`, regex-match all `.method(value)` chains
+4. Detect dynamic vs static params: if value contains `perlin`, `sine`, `rand`, `range` → dynamic
+5. Compute complexity = count of chained method calls
+
+**Test**: Parse "Treasure Map" → get 6 instruments with correct varNames and param maps.
+
+---
+
+## Step 2: Auto-Cost Generator
+
+**File**: Inside `src/patchParser.js`
+
+Generate resource costs from instrument complexity automatically.
+
+**Algorithm:**
+```
+complexity = number of chained params
+tier = based on position in stack():
+  - index 0 → tier 0 (free, ambient base)
+  - index 1-2 → tier 1 (Wood + Stone)
+  - index 3-4 → tier 2 (Stone + Iron)
+  - index 5+ → tier 3 (Iron + Gold)
+
+baseCost = 4 + complexity * 2
+
+tier 0: free
+tier 1: { Wood: baseCost, Stone: baseCost * 0.6 }
+tier 2: { Stone: baseCost * 0.8, Iron: baseCost }
+tier 3: { Iron: baseCost * 0.6, Gold: baseCost }
+```
+
+Costs round to integers. Position in `stack()` determines tier because patches are authored with ambient first, foundation next, melody later, accents last.
+
+**Test**: Parse any scene, verify tier-0 instrument has zero cost, tier-3 has Gold cost.
+
+---
+
+## Step 3: Instrument Registry (Runtime State)
 
 **File**: New `src/instruments.js`
 
-- Export `createInstrumentRegistry()` factory function
-- Define `INSTRUMENT_DEFS` — flat array of all instruments across all scenes
-- Assign tier 0 to each scene's ambient layer (surf, sea breeze, fog, etc.)
-- Assign tiers 1-3 to remaining instruments per scene
-- Return API: `{ getAll, getByScene, unlock, isUnlocked, setParam, getParams, serialize, deserialize }`
+Thin runtime layer — calls the parser on all SCENES at init, manages unlock state and param overrides.
 
-**Test**: Import module, call `getByScene('Treasure Map')`, verify 6 instruments with correct tiers.
+```js
+export function createInstrumentRegistry(scenes) {
+  // Parse all scenes at init
+  const catalog = {};
+  for (const [name, code] of Object.entries(scenes)) {
+    catalog[name] = parseStrudelPatch(code); // from patchParser
+  }
+
+  const unlocked = new Set();  // set of "sceneName::varName" keys
+  const paramOverrides = {};   // "sceneName::varName" → { gain: 0.2, ... }
+  const listeners = [];
+
+  // Auto-unlock tier-0 instruments
+  for (const [scene, instruments] of Object.entries(catalog)) {
+    if (instruments[0]) unlocked.add(`${scene}::${instruments[0].varName}`);
+  }
+
+  return {
+    catalog,        // parsed instrument data per scene
+    getScene(name) { return catalog[name] || []; },
+    isUnlocked(scene, varName) { return unlocked.has(`${scene}::${varName}`); },
+    unlock(scene, varName) { ... },
+    setParam(scene, varName, param, value) { ... },
+    getOverrides(scene, varName) { ... },
+    onUnlock(fn) { listeners.push(fn); },
+    serialize() { ... },
+    deserialize(data) { ... },
+  };
+}
+```
+
+**Test**: Create registry from SCENES, verify all tier-0 instruments auto-unlocked.
 
 ---
 
-### Step 2: Build Dynamic Code Generator
+## Step 4: Dynamic Code Builder
 
 **File**: Inside `src/instruments.js`
 
-- Export `buildSceneCode(sceneName, originalCode, registry)` function
-- Parse the code string by splitting on `let varName =` boundaries
-- For locked instruments: comment out their code block, remove from `stack()`
-- For unlocked instruments with param overrides: regex-replace `.gain(N)`, `.lpf(N)`, `.delay(N)`, `.room(N)` with player values
-- Rebuild `stack(...)` to only include unlocked variable names
+Rebuild a Strudel code string based on unlock state and param overrides.
 
-**Parsing strategy**: Split on `/^let\s+(\w+)\s*=/m`. Each block runs until the next `let` or `stack(`. The `stack(...)` line is always last.
+```js
+function buildSceneCode(sceneName, originalCode, registry) {
+  const instruments = registry.getScene(sceneName);
+  const unlocked = instruments.filter(i => registry.isUnlocked(sceneName, i.varName));
 
-**Test**: With only `seaBreeze` unlocked, verify output code has one instrument in stack and others commented out. Evaluate in Strudel — should hear only pink noise ambient.
+  // Start with setcps line
+  let code = originalCode.match(/^setcps\(.+\)/m)?.[0] + '\n\n';
+
+  // Add only unlocked instrument blocks (with param overrides applied)
+  for (const inst of unlocked) {
+    let block = inst.codeBlock;
+    const overrides = registry.getOverrides(sceneName, inst.varName);
+    if (overrides) {
+      for (const [param, value] of Object.entries(overrides)) {
+        block = applyParamOverride(block, param, value);
+      }
+    }
+    code += block + '\n\n';
+  }
+
+  // Rebuild stack with only unlocked varNames
+  const names = unlocked.map(i => i.varName).join(', ');
+  code += `stack(${names})`;
+
+  return code;
+}
+```
+
+**`applyParamOverride`**: Regex replaces `.param(staticValue)` with new value. For dynamic expressions like `.gain(perlin.range(0.03, 0.1))`, wraps as `.gain(perlin.range(${lo * scale}, ${hi * scale}))`.
+
+**Test**: Build code for Treasure Map with 2/6 unlocked. Evaluate in Strudel — only 2 layers audible.
 
 ---
 
-### Step 3: Wire Registry into Music System
+## Step 5: Wire into Music System
 
 **File**: Modify `src/music.js`
 
-- Change `initMusicPanel(shipAudio)` → `initMusicPanel(shipAudio, instrumentRegistry)`
-- In `toggleScene(name)`: use `buildSceneCode()` instead of raw `SCENES[name]`
-- Same for volume slider handler and `loadScene()`
-- Add unlock count badge on preset grid cards (e.g., "2/6")
-- Register an `onUnlock` listener that re-evaluates the current scene when a new instrument is purchased
+- `initMusicPanel(shipAudio)` → `initMusicPanel(shipAudio, registry)`
+- `toggleScene()` and volume handlers use `buildSceneCode()` instead of raw SCENES
+- Registry `onUnlock` callback re-evaluates current scene live
+- Preset grid cards show unlock badge: "2/6 layers"
 
 **File**: Modify `src/main.js`
 
-- Import and create `instrumentRegistry`
-- Pass it to both `initMusicPanel` and `createTradingSystem`
+```js
+import { createInstrumentRegistry } from './instruments.js';
+const registry = createInstrumentRegistry(SCENES); // SCENES exported from music.js
+// pass to both initMusicPanel and createTradingSystem
+```
 
-**Test**: Open music panel, play Treasure Map. Should hear only the ambient layer (sparse). Verify badge shows "1/6".
+**Test**: Play a scene. Hear only the ambient layer. Verify sparser than before.
 
 ---
 
-### Step 4: Add Instruments Tab to Trading Menu
+## Step 6: Instruments Tab in Trading Menu
 
 **File**: Modify `src/trading.js`
 
-- Accept `instrumentRegistry` as a 4th parameter
-- Assign each island a scene: `sceneNames[islandIndex % sceneNames.length]`
-- Add tab bar to trade card: "Industry | Instruments"
-- Instruments tab lists all instruments for the island's assigned scene
-- Each row shows: lock icon, name, cost (resources), Buy button
-- Buy button checks `materials[resource] >= cost[resource]` for all resources
+Each island gets a scene assignment (seeded random from island position so it's stable):
+```js
+const sceneAssignment = sceneNames[hash(isl.x, isl.z) % sceneNames.length];
+```
 
-**File**: Add CSS to `src/style.css`
+Trading menu gets two tabs: **Industry** (existing) | **Instruments** (new).
 
-- `.trade-tab-bar` — flex row for tabs
-- `.trade-tab` / `.trade-tab.active` — tab button styling
-- `.trade-instrument-row` — instrument list row
-- `.trade-instrument-locked` — dimmed locked styling
-- `.trade-instrument-cost` — resource cost text
+Instruments tab shows the parsed instruments for that island's scene:
+```
+┌──────────────────────────────┐
+│ Quarry                  [×]  │
+│ [Industry] [Instruments]     │
+│                              │
+│ ♪ Treasure Map               │
+│                              │
+│ ✓ Sea Breeze       free      │
+│ ✓ Bass Pluck       owned     │
+│ 🔒 Mystery Pad               │
+│   6W 6S              [Buy]  │
+│ 🔒 Music Box                 │
+│   10S 12I             [Buy]  │
+│                              │
+│ W:12  S:8  I:5  G:2         │
+└──────────────────────────────┘
+```
 
-**Test**: Sail to island. Verify Instruments tab appears with correct scene. Verify locked instruments show costs. Buy button disabled when can't afford.
+- Instrument names come from the parser (varName → display name)
+- Costs come from the auto-cost generator
+- Buy button checks `materials >= cost`, deducts, calls `registry.unlock()`
+
+**CSS**: Tab bar, instrument rows, lock/unlock states, cost labels.
+
+**Test**: Sail to island, see Instruments tab, verify correct scene and parsed instruments listed.
 
 ---
 
-### Step 5: Implement Purchase Flow + Live Audio Update
+## Step 7: Purchase Flow + Live Audio
 
-**File**: `src/trading.js`
+**File**: `src/trading.js` buy handler
 
-- Buy handler: deduct resources from `materials`, call `registry.unlock(id)`
-- Refresh the menu after purchase
+```js
+buyBtn.addEventListener('click', () => {
+  // Deduct resources
+  for (const [res, amount] of Object.entries(inst.cost)) {
+    materials[res] -= amount;
+  }
+  registry.unlock(sceneName, inst.varName);
+  refreshMenu();
+});
+```
+
+**File**: `src/music.js` listener
+
+```js
+registry.onUnlock((scene, varName) => {
+  if (scene === currentScene && isPlaying) {
+    // Re-evaluate with new instrument included
+    const code = buildSceneCode(scene, SCENES[scene], registry);
+    strudelPlay(stripViz(code));
+  }
+});
+```
+
+New instrument appears live in the music.
+
+**Test**: Play Treasure Map. Buy an instrument at an island. Hear the new layer join the music.
+
+---
+
+## Step 8: Instrument Parameter UI
+
+**File**: `src/music.js`
+
+Add a "tweak" sub-panel in the music panel. Accessed via a configure button on preset cards.
+
+For each unlocked instrument, show sliders for its **parsed** params:
+- Only params that were found by the parser get sliders
+- Slider range/step inferred from the parsed value:
+  - `gain`: 0–0.5 (step 0.01)
+  - `lpf`: 100–8000 (step 50)
+  - `delay`: 0–0.8 (step 0.05)
+  - `room`: 0–1.0 (step 0.05)
+  - `attack`/`release`/`decay`: 0–5.0 (step 0.05)
+- Locked instruments shown greyed out
+
+On slider change → `registry.setParam()` → debounced `buildSceneCode()` + `strudelPlay()`.
+
+**Test**: Open panel, move gain slider. Audio changes. All dynamic — add a new param to a patch, it auto-appears as a slider.
+
+---
+
+## Step 9: Live Editor = Crafting
+
+**File**: Modify `src/music.js` editor mode
+
+When the player edits a patch in the Strudel iframe/editor:
+- On "evaluate" (play), re-parse the new code with `parseStrudelPatch()`
+- Diff against the catalog: find new `let` blocks that didn't exist before
+- Each new instrument block = **crafting** — costs resources based on auto-cost of the new block
+- Show a confirmation dialog: "Craft 'myNewSynth'? Cost: 8 Stone, 12 Iron"
+- If player can afford it → deduct resources, add to catalog, unlock it
+- If can't afford → the new block is stripped from evaluation (plays without it)
+
+This makes the live editor a creative tool that's gated by gameplay progression. More complex instruments you write cost more resources.
+
+**Test**: Open editor, add a new `let myLead = note(...).s("square")...` block. Get prompted with cost. Pay it. Hear it play.
+
+---
+
+## Step 10: Persistence
 
 **File**: `src/instruments.js`
 
-- `unlock()` calls registered `onUnlock` callbacks
-- Music system's callback re-evaluates current scene code if it matches
+```js
+// Save on every state change
+function save() {
+  localStorage.setItem('oceanGang_instruments', JSON.stringify({
+    unlocked: [...unlocked],
+    overrides: paramOverrides,
+  }));
+}
 
-**Cross-module communication**: Registry holds `onUnlock` callback array. Music registers a listener; trading triggers it via `registry.unlock()`. No direct imports between music.js and trading.js.
+// Load on init
+function load() {
+  const data = localStorage.getItem('oceanGang_instruments');
+  if (data) deserialize(JSON.parse(data));
+}
+```
 
-**Test**: Play Treasure Map (ambient only). Sail to island, buy Bass Pluck. Hear the bass layer appear in the live music without restart.
+Also persist `materials` in `trading.js`.
 
----
-
-### Step 6: Instrument Parameter Panel
-
-**File**: `src/music.js` + `src/style.css`
-
-- Add "Configure" button on preset cards (visible when instruments are unlocked)
-- Clicking opens a sub-panel replacing the preset grid (with "Back" button)
-- Sub-panel lists each unlocked instrument with parameter sliders:
-  - **Gain** — always available (0.0–0.5)
-  - **Filter (lpf)** — if instrument has `.lpf(N)` (100–8000)
-  - **Delay mix** — if instrument has `.delay(N)` (0.0–0.8)
-  - **Reverb (room)** — if instrument has `.room(N)` (0.0–1.0)
-- Slider `change` → `registry.setParam(id, name, value)` → debounced re-evaluate (300ms)
-- Locked instruments shown dimmed with "(locked)" label
-
-**Parameter application in `buildSceneCode`**:
-- Static gain `.gain(0.15)` → direct replace
-- Dynamic gain `.gain(perlin.range(0.03, 0.1))` → scale range endpoints by multiplier
-- Same approach for lpf, delay, room
-
-**Test**: Open configure panel, move gain slider. Verify audio level changes. Move filter slider. Verify timbre changes.
+**Test**: Unlock instruments, refresh. Still unlocked.
 
 ---
 
-### Step 7: Persistence (localStorage)
+## Step 11: Visual Polish
 
-**File**: `src/instruments.js`
-
-- On every unlock and param change: `localStorage.setItem('oceanGang_instruments', JSON.stringify(registry.serialize()))`
-- On init: load from localStorage, call `registry.deserialize(data)`
-
-**File**: `src/trading.js`
-
-- Persist `materials` to localStorage on change
-- Load on init
-
-**Test**: Unlock instrument, refresh page. Verify still unlocked. Tweak a parameter, refresh. Verify value persists.
-
----
-
-### Step 8: Visual Polish + Feedback
-
-**Files**: `src/trading.js`, `src/music.js`, `src/style.css`
-
-- Toast notification on purchase: "Unlocked: Music Box"
-- Progress bar on preset cards showing unlock fraction
-- Locked instruments dimmed, unlocked instruments glow
-- New instrument fades in (gain 0 → target over 2s) when purchased during playback
-- Smooth CSS transitions on tab switching and panel state
+- Toast on purchase: "Unlocked: Music Box"
+- Preset cards: progress bar + "3/6" badge
+- New instrument fades in over 2s (temporary gain ramp)
+- Tab transitions in trading menu
+- Locked instruments dimmed with lock icon
+- Crafting confirmation dialog styled as parchment/pirate theme
 
 ---
 
 ## Module Dependency Graph
 
 ```
-                    instruments.js (shared state)
-                   /              \
-           music.js              trading.js
-          (reads registry,      (reads/writes registry,
-           builds code,          handles purchases,
-           param UI)             deducts resources)
-                   \              /
-                    main.js (wires everything)
+  patchParser.js (pure functions, no state)
+       ↓
+  instruments.js (runtime state, calls parser)
+      ↙        ↘
+music.js      trading.js
+(plays code,  (buy/sell,
+ param UI,     island vendors,
+ editor)       resource deduction)
+      ↘        ↙
+     main.js (wires everything)
 ```
 
-## Progression Balance
+## Why This is Better
 
-- **46 purchasable instruments** (13 scenes × ~3-5 per scene, minus free tier-0)
-- **Tier 1** (16 instruments): 6-10 Wood + 4-8 Stone → early game
-- **Tier 2** (17 instruments): 6-10 Stone + 6-10 Iron → mid game
-- **Tier 3** (13 instruments): 6-10 Iron + 8-12 Gold → late game
-
-Musical journey mirrors gameplay: ambient → bass/harmony → melodies → sparkle/accents.
-
-## Risk Areas
-
-1. **Code parsing**: Instrument blocks reliably start with `let varName =`. Split on that regex.
-2. **Dynamic gain expressions**: Detect static vs. dynamic patterns with separate regexes. Scale range endpoints for dynamic.
-3. **Hot-reload**: `strudelEvaluate(newCode)` seamlessly transitions mid-playback. Already used by the volume slider.
-4. **Island-scene mapping**: 32 islands, 13 scenes → some scenes at 2 islands, some at 3. Fine for exploration incentive.
+- **Zero manual instrument definitions** — add a `let` block to any patch, it auto-appears in the game
+- **Self-balancing costs** — complex instruments cost more because they have more params
+- **Roguelike feel** — each island offers a different scene's instruments, exploration reveals what's available
+- **Live editor as gameplay** — writing music IS the endgame, gated by resources you earned sailing
+- **Fully extensible** — add new patches, they just work. No code changes needed.
