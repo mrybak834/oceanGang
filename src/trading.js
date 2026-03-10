@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { createDaoistPriest, updateDaoistPriest } from './daoistPriest.js';
-import { SOUND_OPTIONS, applySoundSwap, isSwappableSynth } from './patchParser.js';
 
 // ─── Island Trading System ───
 
@@ -115,10 +114,6 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
         <span class="trade-island-name"></span>
         <button class="trade-close">&times;</button>
       </div>
-      <div class="trade-tabs">
-        <button class="trade-tab active" data-tab="industry">Industry</button>
-        <button class="trade-tab" data-tab="instruments">Instruments</button>
-      </div>
       <div class="trade-panel trade-panel-industry">
       <div class="trade-type"></div>
       <div class="trade-level"></div>
@@ -127,10 +122,6 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
         <button class="trade-invest-btn">Invest</button>
         <span class="trade-cost"></span>
       </div>
-      </div>
-      <div class="trade-panel trade-panel-instruments trade-panel-hidden">
-        <div class="trade-scene-name"></div>
-        <div class="trade-instrument-list"></div>
       </div>
       <div class="trade-inventory"></div>
     </div>
@@ -151,11 +142,6 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
   const elCost = overlay.querySelector('.trade-cost');
   const elInv = overlay.querySelector('.trade-inventory');
   const elClose = overlay.querySelector('.trade-close');
-  const elScene = overlay.querySelector('.trade-scene-name');
-  const elInstrumentList = overlay.querySelector('.trade-instrument-list');
-  const tabButtons = [...overlay.querySelectorAll('.trade-tab')];
-  const panelIndustry = overlay.querySelector('.trade-panel-industry');
-  const panelInstruments = overlay.querySelector('.trade-panel-instruments');
 
   // ── Resource Tracker HUD ──
   const tracker = document.createElement('div');
@@ -187,7 +173,6 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
 
   let menuOpen = false;
   let activeIsland = null;
-  let activeTab = 'industry';
   let metDaoistPriest = false;
   let encounterStep = 0;
   let encounterActive = false;
@@ -228,25 +213,6 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
   overlay.addEventListener('mousedown', e => e.stopPropagation());
   overlay.addEventListener('wheel', e => e.stopPropagation());
 
-  function setActiveTab(tabName) {
-    activeTab = tabName;
-    tabButtons.forEach((button) => {
-      button.classList.toggle('active', button.dataset.tab === tabName);
-    });
-    panelIndustry.classList.toggle('trade-panel-hidden', tabName !== 'industry');
-    panelInstruments.classList.toggle('trade-panel-hidden', tabName !== 'instruments');
-  }
-
-  tabButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      setActiveTab(button.dataset.tab);
-    });
-  });
-
-  instrumentRegistry.subscribe(() => {
-    if (menuOpen) refreshMenu();
-  });
-
   function ensurePriestForIsland(isl) {
     if (isl.priest) return;
     const priest = createDaoistPriest();
@@ -280,7 +246,6 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
       encounterStep = 0;
       refreshEncounter();
     }
-    setActiveTab(activeTab);
     refreshMenu();
   }
 
@@ -325,7 +290,6 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     if (!isl) return;
     const lvl = LEVELS[isl.level];
     const nextLvl = isl.level + 1 < LEVELS.length ? LEVELS[isl.level + 1] : null;
-    const sceneInstruments = instrumentRegistry.getScene(isl.sceneName);
 
     elName.textContent = isl.type.name;
     elName.style.color = isl.type.color;
@@ -351,77 +315,6 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     elInv.innerHTML = Object.entries(materials)
       .map(([k, v]) => `<span class="mat-item"><b>${k}</b> ${Math.floor(v)}</span>`)
       .join('');
-
-    elScene.textContent = `Scene: ${isl.sceneName}`;
-    elInstrumentList.innerHTML = sceneInstruments.map((inst) => {
-      const unlocked = instrumentRegistry.isUnlocked(isl.sceneName, inst.varName);
-      const swappable = unlocked && isSwappableSynth(inst.synthType);
-      const costLabel = unlocked ? 'Owned' : (Object.keys(inst.cost).length ? formatCost(inst.cost) : 'Free');
-      const disabled = unlocked || !canAfford(materials, inst.cost) || Object.keys(inst.cost).length === 0;
-      const affordClass = unlocked || canAfford(materials, inst.cost) ? '' : ' afford-blocked';
-
-      let actionHtml;
-      if (swappable) {
-        // Sound swap dropdown for owned instruments
-        const currentSynth = inst.synthType;
-        const groups = {};
-        for (const opt of SOUND_OPTIONS) {
-          if (!groups[opt.group]) groups[opt.group] = [];
-          groups[opt.group].push(opt);
-        }
-        const optionsHtml = Object.entries(groups).map(([group, opts]) =>
-          `<optgroup label="${group}">${opts.map((o) =>
-            `<option value="${o.value}"${o.value === currentSynth ? ' selected' : ''}>${o.label}</option>`
-          ).join('')}</optgroup>`
-        ).join('');
-        actionHtml = `<select class="trade-sound-select" data-scene="${isl.sceneName}" data-var="${inst.varName}">${optionsHtml}</select>`;
-      } else if (unlocked) {
-        actionHtml = `<button class="trade-buy-btn" disabled>Owned</button>`;
-      } else {
-        actionHtml = `<button class="trade-buy-btn" data-scene="${isl.sceneName}" data-var="${inst.varName}" ${disabled ? 'disabled' : ''}>Buy</button>`;
-      }
-
-      return `
-        <div class="trade-instrument-row${affordClass}">
-          <div class="trade-instrument-copy">
-            <div class="trade-instrument-name">${unlocked ? '✓' : '♪'} ${inst.displayName}</div>
-            <div class="trade-instrument-meta">${swappable ? 'Sound:' : `${inst.synthType || 'pattern'} · ${costLabel}`}</div>
-          </div>
-          ${actionHtml}
-        </div>
-      `;
-    }).join('');
-
-    // Buy buttons
-    elInstrumentList.querySelectorAll('.trade-buy-btn:not([disabled])').forEach((button) => {
-      button.addEventListener('click', () => {
-        const sceneName = button.dataset.scene;
-        const varName = button.dataset.var;
-        const inst = instrumentRegistry.getScene(sceneName).find((item) => item.varName === varName);
-        if (!inst || instrumentRegistry.isUnlocked(sceneName, varName)) return;
-        if (!canAfford(materials, inst.cost)) return;
-        for (const [name, amount] of Object.entries(inst.cost)) {
-          materials[name] -= amount;
-        }
-        instrumentRegistry.unlock(sceneName, varName);
-        refreshMenu();
-      });
-    });
-
-    // Sound swap dropdowns
-    elInstrumentList.querySelectorAll('.trade-sound-select').forEach((select) => {
-      select.addEventListener('change', () => {
-        const sceneName = select.dataset.scene;
-        const varName = select.dataset.var;
-        const newSynth = select.value;
-        const currentCode = instrumentRegistry.getSceneCode(sceneName);
-        const newCode = applySoundSwap(currentCode, varName, newSynth);
-        instrumentRegistry.setSceneCode(sceneName, newCode);
-        document.dispatchEvent(new CustomEvent('oceangang:sound-swap', {
-          detail: { sceneName, code: newCode },
-        }));
-      });
-    });
   }
 
   // Cache DOM refs once (avoid querySelector every frame)

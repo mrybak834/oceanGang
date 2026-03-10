@@ -42,23 +42,32 @@ function musicSceneSavePlugin() {
         req.on('data', chunk => { body += chunk; });
         req.on('end', () => {
           try {
-            const { sceneName, code } = JSON.parse(body || '{}');
-            if (typeof sceneName !== 'string' || !sceneName || typeof code !== 'string') {
+            const payload = JSON.parse(body || '{}');
+            if (!payload || typeof payload !== 'object') {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ ok: false, error: 'Invalid payload' }));
               return;
             }
-
             const filePath = path.resolve('public/music-scene-overrides.json');
-            let existing = {};
-            if (fs.existsSync(filePath)) {
-              existing = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            const existing = fs.existsSync(filePath)
+              ? JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+              : {};
+            if (payload.mode === 'replace_all' && payload.data && typeof payload.data === 'object') {
+              fs.writeFileSync(filePath, JSON.stringify(payload.data, null, 2) + '\n', 'utf-8');
+            } else {
+              const { sceneName, code } = payload;
+              if (typeof sceneName !== 'string' || !sceneName || typeof code !== 'string') {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ ok: false, error: 'Invalid payload' }));
+                return;
+              }
+              existing[sceneName] = code;
+              fs.writeFileSync(filePath, JSON.stringify(existing, null, 2) + '\n', 'utf-8');
             }
-            existing[sceneName] = code;
-            fs.writeFileSync(filePath, JSON.stringify(existing, null, 2) + '\n', 'utf-8');
 
-            console.log(`\n  Music scene saved → ${sceneName} (${filePath})\n`);
+            console.log(`\n  Music scene overrides saved → ${filePath}\n`);
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ ok: true, path: filePath }));
           } catch (err) {

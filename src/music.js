@@ -1,6 +1,7 @@
 // ─── Strudel Music Panel — scenes, toggle, drag, resize, fade ───
 import '@strudel/repl';
 import { getSuperdoughAudioController } from 'superdough';
+import { SOUND_OPTIONS, applySoundSwap, isSwappableSynth } from './patchParser.js';
 
 export const MUSIC_SCENE_SYNC_EVENT = 'oceangang:music-scene-sync';
 export const MUSIC_PLAYBACK_EVENT = 'oceangang:music-playback';
@@ -513,6 +514,7 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
   const presetGrid = document.getElementById('music-preset-grid');
   const musicVolSlider = document.getElementById('music-vol');
   const sfxVolSlider = document.getElementById('sfx-vol');
+  const instrumentsPanel = document.getElementById('music-instruments');
 
   let panelMode = 'hidden';
   let embeddedRepl = null;
@@ -525,11 +527,86 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
   let loadSceneRequestId = 0;
   const sceneDrafts = Object.fromEntries(Object.entries(SCENES));
 
+  const saveVariationBtn = document.getElementById('music-save-variation');
+  const deleteVariationBtn = document.getElementById('music-delete-variation');
+
+  // ── Variation tracking: each scene has an array of code strings ──
+  const VARIATIONS_STORAGE_KEY = 'oceanGang_variations_v1';
+  const sceneVariations = {};    // sceneName -> [code, code, ...]
+  const sceneVariationIdx = {};  // sceneName -> current index
+
   const sceneNames = Object.keys(SCENES);
   sceneScrubber.max = Math.max(sceneNames.length - 1, 0);
 
+  for (const name of sceneNames) {
+    sceneVariations[name] = [SCENES[name]];
+    sceneVariationIdx[name] = 0;
+  }
+
+  function saveVariations() {
+    try {
+      const data = {};
+      for (const name of sceneNames) {
+        const vars = sceneVariations[name];
+        // Only persist scenes that have extra variations beyond the default
+        if (vars && vars.length > 1) {
+          data[name] = { variations: vars, idx: sceneVariationIdx[name] || 0 };
+        } else if (vars && vars.length === 1 && vars[0] !== SCENES[name]) {
+          // Edited default — persist it too
+          data[name] = { variations: vars, idx: 0 };
+        }
+      }
+      localStorage.setItem(VARIATIONS_STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.warn('Failed to save variations:', err);
+    }
+  }
+
+  function loadVariations() {
+    try {
+      const raw = localStorage.getItem(VARIATIONS_STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      for (const name of sceneNames) {
+        if (!data[name]) continue;
+        const { variations, idx } = data[name];
+        if (Array.isArray(variations) && variations.length > 0) {
+          sceneVariations[name] = variations;
+          sceneVariationIdx[name] = Math.min(idx || 0, variations.length - 1);
+          sceneDrafts[name] = variations[sceneVariationIdx[name]];
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load variations:', err);
+    }
+  }
+
+  loadVariations();
+
   function getSceneCode(name) {
-    return sceneDrafts[name] || SCENES[name];
+    const idx = sceneVariationIdx[name] || 0;
+    return sceneVariations[name]?.[idx] || sceneDrafts[name] || SCENES[name];
+  }
+
+  function currentVariationCount(name) {
+    return sceneVariations[name]?.length || 1;
+  }
+
+  function currentVariationIndex(name) {
+    return (sceneVariationIdx[name] || 0) + 1;
+  }
+
+  function cycleVariation(name, direction) {
+    const vars = sceneVariations[name];
+    if (!vars || vars.length <= 1) return;
+    const idx = sceneVariationIdx[name] || 0;
+    sceneVariationIdx[name] = (idx + direction + vars.length) % vars.length;
+    sceneDrafts[name] = vars[sceneVariationIdx[name]];
+    saveVariations();
+    updateCardStates();
+    if (name === currentScene) {
+      loadScene(name);
+    }
   }
 
   async function loadProjectSceneDrafts() {
@@ -739,8 +816,40 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
       desc.className = 'music-preset-desc';
       desc.textContent = getSceneDesc(name);
 
+      // ── Variation row: up/down + counter ──
+      const varRow = document.createElement('div');
+      varRow.className = 'music-var-row';
+
+      const varDown = document.createElement('button');
+      varDown.className = 'music-var-btn';
+      varDown.textContent = '\u25BC';
+      varDown.title = 'Previous variation';
+      varDown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cycleVariation(name, -1);
+      });
+
+      const varLabel = document.createElement('span');
+      varLabel.className = 'music-var-label';
+      const total = currentVariationCount(name);
+      varLabel.textContent = total > 1 ? `${currentVariationIndex(name)}/${total}` : '1';
+
+      const varUp = document.createElement('button');
+      varUp.className = 'music-var-btn';
+      varUp.textContent = '\u25B2';
+      varUp.title = 'Next variation';
+      varUp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cycleVariation(name, 1);
+      });
+
+      varRow.appendChild(varDown);
+      varRow.appendChild(varLabel);
+      varRow.appendChild(varUp);
+
       card.appendChild(title);
       card.appendChild(desc);
+      card.appendChild(varRow);
 
       card.addEventListener('click', () => toggleScene(name));
 
@@ -754,8 +863,77 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
       const isActive = cardName === currentScene;
       card.classList.toggle('playing', isActive && isPlaying);
       card.classList.toggle('loading', isActive && isLoading);
+      // Update variation label
+      const varLabel = card.querySelector('.music-var-label');
+      if (varLabel) {
+        const total = currentVariationCount(cardName);
+        varLabel.textContent = total > 1 ? `${currentVariationIndex(cardName)}/${total}` : '1';
+      }
     }
     updateNowPlayingUi();
+    refreshInstruments();
+  }
+
+  // ── Instruments panel for current scene ──
+  function refreshInstruments() {
+    if (!instrumentRegistry || !currentScene) {
+      instrumentsPanel.innerHTML = '';
+      return;
+    }
+    const sceneInstruments = instrumentRegistry.getScene(currentScene);
+    if (!sceneInstruments.length) {
+      instrumentsPanel.innerHTML = '';
+      return;
+    }
+
+    const groups = {};
+    for (const opt of SOUND_OPTIONS) {
+      if (!groups[opt.group]) groups[opt.group] = [];
+      groups[opt.group].push(opt);
+    }
+
+    instrumentsPanel.innerHTML = `
+      <div class="music-inst-header">Instruments</div>
+      ${sceneInstruments.map((inst) => {
+        const unlocked = instrumentRegistry.isUnlocked(currentScene, inst.varName);
+        const swappable = unlocked && isSwappableSynth(inst.synthType);
+
+        let actionHtml;
+        if (swappable) {
+          const currentSynth = inst.synthType;
+          const optionsHtml = Object.entries(groups).map(([group, opts]) =>
+            `<optgroup label="${group}">${opts.map((o) =>
+              `<option value="${o.value}"${o.value === currentSynth ? ' selected' : ''}>${o.label}</option>`
+            ).join('')}</optgroup>`
+          ).join('');
+          actionHtml = `<select class="music-inst-select" data-var="${inst.varName}">${optionsHtml}</select>`;
+        } else if (unlocked) {
+          actionHtml = `<span class="music-inst-owned">Owned</span>`;
+        } else {
+          actionHtml = `<span class="music-inst-locked">Locked</span>`;
+        }
+
+        return `
+          <div class="music-inst-row${unlocked ? '' : ' music-inst-locked-row'}">
+            <span class="music-inst-name">${unlocked ? '\u2713' : '\u266A'} ${inst.displayName}</span>
+            ${actionHtml}
+          </div>`;
+      }).join('')}
+    `;
+
+    // Wire up sound swap selects
+    instrumentsPanel.querySelectorAll('.music-inst-select').forEach((select) => {
+      select.addEventListener('change', () => {
+        const varName = select.dataset.var;
+        const newSynth = select.value;
+        const currentCode = instrumentRegistry.getSceneCode(currentScene);
+        const newCode = applySoundSwap(currentCode, varName, newSynth);
+        instrumentRegistry.setSceneCode(currentScene, newCode);
+        document.dispatchEvent(new CustomEvent('oceangang:sound-swap', {
+          detail: { sceneName: currentScene, code: newCode },
+        }));
+      });
+    });
   }
 
   // ── Toggle play/stop for a scene via Strudel player ──
@@ -803,7 +981,7 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
     sceneSelect.value = name;
     const repl = await ensureEmbeddedRepl();
     if (requestId !== loadSceneRequestId) return;
-    repl.setAttribute('code', sceneDrafts[name] || SCENES[name]);
+    repl.setAttribute('code', getSceneCode(name));
     isPlaying = false;
     isLoading = false;
     updateCardStates();
@@ -825,6 +1003,13 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
   saveBtn.addEventListener('click', async () => {
     try {
       await saveCurrentSceneDraft();
+      // Also update the current variation slot
+      const name = currentScene || sceneSelect.value;
+      if (name && sceneVariations[name]) {
+        const idx = sceneVariationIdx[name] || 0;
+        sceneVariations[name][idx] = sceneDrafts[name];
+        saveVariations();
+      }
       saveBtn.textContent = 'Saved';
       setTimeout(() => { saveBtn.textContent = 'Save'; }, 1000);
     } catch (err) {
@@ -832,6 +1017,34 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
       saveBtn.textContent = 'Error';
       setTimeout(() => { saveBtn.textContent = 'Save'; }, 1200);
     }
+  });
+
+  saveVariationBtn.addEventListener('click', async () => {
+    const name = currentScene || sceneSelect.value;
+    if (!name || !embeddedRepl?.editor) return;
+    const code = embeddedRepl.editor.code;
+    if (!sceneVariations[name]) sceneVariations[name] = [SCENES[name]];
+    sceneVariations[name].push(code);
+    sceneVariationIdx[name] = sceneVariations[name].length - 1;
+    sceneDrafts[name] = code;
+    saveVariations();
+    updateCardStates();
+    saveVariationBtn.textContent = 'Saved!';
+    setTimeout(() => { saveVariationBtn.textContent = 'Save As Variation'; }, 1000);
+  });
+
+  deleteVariationBtn.addEventListener('click', () => {
+    const name = currentScene || sceneSelect.value;
+    if (!name || !sceneVariations[name]) return;
+    const vars = sceneVariations[name];
+    if (vars.length <= 1) return; // can't delete the only variation
+    const idx = sceneVariationIdx[name] || 0;
+    vars.splice(idx, 1);
+    sceneVariationIdx[name] = Math.min(idx, vars.length - 1);
+    sceneDrafts[name] = vars[sceneVariationIdx[name]];
+    saveVariations();
+    updateCardStates();
+    loadScene(name);
   });
 
   // ── Volume sliders ──
@@ -986,12 +1199,16 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
     updateNowPlayingUi();
   }
 
+  // ── Refresh instruments when registry changes (e.g., bought at island) ──
+  instrumentRegistry.subscribe(() => {
+    refreshInstruments();
+  });
+
   // ── Sound swap from trading UI ──
   document.addEventListener('oceangang:sound-swap', async (event) => {
     const { sceneName, code } = event.detail || {};
     if (!sceneName || !code) return;
     sceneDrafts[sceneName] = code;
-    persistSceneDrafts();
     if (currentScene === sceneName) {
       const repl = await ensureEmbeddedRepl();
       repl.setAttribute('code', code);
