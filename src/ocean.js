@@ -37,8 +37,8 @@ export function createOcean(scene, renderer) {
   skyUniforms['mieCoefficient'].value = 0.005;
   skyUniforms['mieDirectionalG'].value = 0.8;
 
-  // Sun position — bright sunny day
-  const parameters = { elevation: 35, azimuth: 180 };
+  // Sun position
+  const parameters = { elevation: 24, azimuth: 78 };
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   const sceneEnv = new THREE.Scene();
   let renderTarget;

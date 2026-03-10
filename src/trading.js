@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // ─── Island Trading System ───
 
 const BARRIER_BUFFER = 18;   // distance past island radius for barrier ring
-const PUSH_BUFFER = 2;       // extra push-out so boat doesn't stick
+const INNER_BUFFER = 8;      // hard-stop boundary inside the barrier ring
 
 const ISLAND_TYPES = [
   { name: 'Lumber Mill', material: 'Wood',  icon: 'W', color: '#a67c52' },
@@ -33,6 +33,7 @@ export function createTradingSystem(scene, islandData, crateManager) {
 
   // ── Global materials inventory ──
   const materials = { Wood: 0, Stone: 0, Iron: 0, Gold: 0 };
+  let lastBoatRef = null;
 
   // ── Barrier ring visuals ──
   const ringMat = new THREE.MeshBasicMaterial({
@@ -210,7 +211,8 @@ export function createTradingSystem(scene, islandData, crateManager) {
   }
 
   // ── Per-frame update — collision + production ──
-  function update(boat, delta) {
+  function update(boat, delta, boatController) {
+    lastBoatRef = boat;
     // Tick cooldown
     if (tradeCooldown > 0) tradeCooldown -= delta;
 
@@ -238,20 +240,30 @@ export function createTradingSystem(scene, islandData, crateManager) {
         isl.stored -= amount;
       }
 
-      // Barrier collision
+      // Outer barrier ring — open trading menu
       if (dist < isl.barrierR) {
-        // Push boat out
+        hitIsland = isl;
+      }
+
+      // Inner hard stop — prevent boat from reaching the actual island
+      const innerR = isl.barrierR - INNER_BUFFER;
+      if (dist < innerR) {
         const nx = dx / dist;
         const nz = dz / dist;
-        boat.position.x = isl.x + nx * (isl.barrierR + PUSH_BUFFER);
-        boat.position.z = isl.z + nz * (isl.barrierR + PUSH_BUFFER);
-        hitIsland = isl;
+        boat.position.x = isl.x + nx * innerR;
+        boat.position.z = isl.z + nz * innerR;
+        boatController.stop();
       }
     }
 
-    // Open menu on collision
+    // Open menu when entering the ring
     if (hitIsland && !menuOpen) {
       openMenu(hitIsland);
+    }
+
+    // Auto-close menu when boat leaves the ring
+    if (menuOpen && !hitIsland) {
+      closeMenu();
     }
 
     // Refresh menu at same throttled rate as HUD

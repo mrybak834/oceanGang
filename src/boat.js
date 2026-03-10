@@ -1137,8 +1137,13 @@ export function createBoatController() {
     splashParticles.material.opacity = 0.9 * (1 - progress * progress);
   }
 
+  function stop() {
+    speed = 0;
+    lateralSpeed = 0;
+  }
+
   return {
-    update, keys,
+    update, stop, keys,
     get velocity() { return { forward: speed, turn: yawRate }; },
     get boostAmount() { return boostAmount; },
     get isJumping() { return isJumping; },

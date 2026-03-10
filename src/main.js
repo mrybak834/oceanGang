@@ -59,7 +59,7 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setAnimationLoop(animate);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.8;
+  renderer.toneMappingExposure = 0.64;
   document.body.appendChild(renderer.domElement);
 
   // Scene
@@ -208,7 +208,7 @@ function animate() {
 
   // Island barriers + trading
   perfTracker.markStart('trading');
-  tradingSystem.update(boat, delta);
+  tradingSystem.update(boat, delta, boatController);
   perfTracker.markEnd('trading');
 
   // Ship water audio

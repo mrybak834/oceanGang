@@ -138,6 +138,188 @@ let crackles = s("hh*16?0.15")
 stack(stormSurf, stormOcarina, thunder, stormWind, candy, crackles)
   .scope({color:'#ff4444',thickness:2})`,
 
+  // ─── Ambient Pirate Soundscapes ───
+
+  'Drifting Shanty': `// slow accordion pads, gentle concertina melody, creaking hull
+setcps(0.22)
+
+let concertina = note("g4 ~ a4 b4 ~ d5 b4 ~ a4 ~ g4 ~ e4 ~ d4 ~")
+  .s("sawtooth").slow(4)
+  .lpf(sine.slow(12).range(600, 1400))
+  .vib(5).vibmod(0.12)
+  .attack(0.12).decay(0.4).sustain(0.5).release(1.2)
+  .delay(0.35).delaytime(0.375).delayfeedback(0.35)
+  .room(0.8).gain(0.14)
+
+let accordionPad = note("<[g2,b2,d3] [c3,e3,g3] [d3,f#3,a3] [e3,g3,b3]>")
+  .s("sawtooth").slow(3)
+  .lpf(perlin.range(300, 900).slow(16))
+  .attack(0.8).release(1.5)
+  .gain(0.18).room(0.75).roomsize(0.7)
+
+let hull = sound("brown")
+  .gain(perlin.slow(20).range(0.02, 0.07))
+  .lpf(sine.slow(14).range(60, 280))
+  .hpf(25)
+  .room(0.92).roomsize(0.85)
+
+let creak = note("~ ~ c3 ~ ~ ~ ~ ~ ~ e3 ~ ~ ~ ~ ~ ~")
+  .s("triangle").slow(8)
+  .lpf(400).hpf(100)
+  .attack(0.3).decay(1.5).sustain(0).release(0.5)
+  .gain(0.06).room(0.9)
+
+stack(concertina, accordionPad, hull, creak)
+  .pianoroll({labels:1,active:'#d4a574',background:'transparent'})`,
+
+  'Harbor Bells': `// distant port bells, lapping water, warm lantern glow
+setcps(0.18)
+
+let harborWater = sound("<brown pink>")
+  .gain(perlin.slow(28).range(0.03, 0.09))
+  .lpf(sine.slow(18).range(100, 500))
+  .hpf(40)
+  .room(0.93).roomsize(0.88)
+
+let bells = note("e5 ~ ~ ~ ~ b5 ~ ~ ~ ~ g5 ~ ~ ~ ~ ~")
+  .s("gm_fx_crystal").slow(6)
+  .gain(perlin.slow(8).range(0.04, 0.12))
+  .delay(0.55).delaytime(0.5).delayfeedback(0.5)
+  .room(0.95)
+
+let lantern = note("<[e3,g#3,b3] [a3,c#4,e4] [f#3,a3,c#4] [b2,d#3,f#3]>")
+  .s("gm_pad_warm").slow(4)
+  .lpf(perlin.range(350, 850).slow(20))
+  .gain(0.16).room(0.85).roomsize(0.8)
+
+let rigging = s("hh*4?0.08")
+  .gain(rand.range(0.01, 0.04))
+  .lpf(rand.range(2000, 6000)).hpf(1000)
+  .delay(0.4).room(0.85)
+
+stack(harborWater, bells, lantern, rigging)
+  .pianoroll({labels:1,active:'#f0c674',background:'transparent'})`,
+
+  'Moonlit Cove': `// still water, sparse crystal drips, deep mystery
+setcps(0.15)
+
+let stillWater = sound("brown")
+  .gain(perlin.slow(40).range(0.02, 0.06))
+  .lpf(sine.slow(24).range(50, 250))
+  .hpf(20)
+  .room(0.97).roomsize(0.95)
+
+let drips = note("~ c6 ~ ~ ~ ~ e6 ~ ~ ~ ~ ~ g5 ~ ~ ~")
+  .s("gm_fx_crystal").slow(10)
+  .gain(perlin.slow(6).range(0.03, 0.09))
+  .delay(0.65).delaytime(0.625).delayfeedback(0.6)
+  .room(0.98)
+
+let moonPad = note("<[c3,e3,b3] [a2,e3,g3] [f2,c3,a3] [g2,d3,b3]>")
+  .s("gm_pad_halo").slow(6)
+  .lpf(perlin.range(200, 550).slow(28))
+  .gain(0.14).room(0.95).roomsize(0.9)
+
+let deepPulse = note("<c1 ~ g1 ~>/4")
+  .s("sine").slow(8)
+  .attack(3).release(5)
+  .lpf(100)
+  .gain(perlin.slow(20).range(0.04, 0.1))
+  .room(0.97)
+
+stack(stillWater, drips, moonPad, deepPulse)
+  .pianoroll({labels:1,active:'#7eb8da',background:'transparent'})`,
+
+  'Rum & Reverie': `// warm plucked strings, mellow bass, tavern afterglow
+setcps(0.28)
+
+let pluck = note("d4 ~ a4 ~ f#4 ~ e4 ~ d4 ~ b3 ~ a3 ~ ~ ~")
+  .s("triangle").slow(4)
+  .lpf(1800)
+  .attack(0.005).decay(0.6).sustain(0.1).release(1)
+  .delay(0.3).delaytime(0.25).delayfeedback(0.3)
+  .room(0.7).gain(0.16)
+
+let bassWarm = note("d2 ~ ~ a2 ~ ~ f#2 ~ ~ ~ e2 ~ ~ ~ ~ ~")
+  .s("triangle").slow(4)
+  .lpf(400)
+  .attack(0.05).decay(0.4).sustain(0.6).release(0.8)
+  .gain(0.3).room(0.5)
+
+let warmPad = note("<[d3,f#3,a3] [g3,b3,d4] [a2,c#3,e3] [b2,d3,f#3]>")
+  .s("gm_pad_warm").slow(3)
+  .lpf(sine.range(400, 1000).slow(16))
+  .gain(0.18).room(0.75).roomsize(0.65)
+
+let murmur = sound("pink")
+  .gain(perlin.slow(16).range(0.01, 0.04))
+  .lpf(perlin.range(200, 800).slow(10))
+  .hpf(80)
+  .room(0.7)
+
+stack(pluck, bassWarm, warmPad, murmur)
+  .pianoroll({labels:1,active:'#c9956b',background:'transparent'})`,
+
+  'Foghorn Drift': `// deep foghorn drones, distant bells, ghostly atmosphere
+setcps(0.12)
+
+let foghorn = note("<c1 ~ ~ eb1 ~ ~ g1 ~ ~ ~ ~ ~>/2")
+  .s("sawtooth").slow(8)
+  .lpf(sine.slow(16).range(40, 120))
+  .attack(3).release(5)
+  .room(0.98).roomsize(0.97)
+  .gain(perlin.slow(20).range(0.05, 0.15))
+
+let ghostPad = note("<[c3,g3,bb3] [eb3,bb3,db4] [ab2,eb3,gb3] [bb2,f3,ab3]>")
+  .s("gm_pad_halo").slow(6)
+  .lpf(perlin.range(150, 500).slow(24))
+  .gain(0.12).room(0.96).roomsize(0.92)
+
+let fog = sound("<brown pink>")
+  .gain(perlin.slow(32).range(0.03, 0.08))
+  .lpf(sine.slow(20).range(60, 350))
+  .hpf(20)
+  .room(0.97).roomsize(0.95)
+
+let distantBell = note("~ ~ ~ ~ ~ eb6 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~")
+  .s("gm_fx_crystal").slow(12)
+  .gain(0.06)
+  .delay(0.7).delaytime(0.75).delayfeedback(0.6)
+  .room(0.98)
+
+stack(foghorn, ghostPad, fog, distantBell)
+  .spiral({steady:0.98})`,
+
+  'Treasure Map': `// music box melody, mysterious pads, adventure sparkle
+setcps(0.25)
+
+let musicBox = note("e5 g5 b5 ~ a5 f#5 ~ e5 d5 ~ b4 ~ a4 ~ ~ ~")
+  .s("sine").slow(4)
+  .lpf(3000)
+  .attack(0.003).decay(0.5).sustain(0.05).release(1.2)
+  .delay(0.4).delaytime(0.375).delayfeedback(0.4)
+  .room(0.85).gain(0.15)
+
+let mysteryPad = note("<[e3,g3,b3] [c3,e3,a3] [d3,f#3,a3] [b2,e3,g3]>")
+  .s("gm_pad_halo").slow(3)
+  .lpf(perlin.range(300, 800).slow(16))
+  .gain(0.17).room(0.8).roomsize(0.75)
+
+let sparkle = note("~ ~ b6 ~ ~ ~ ~ e7 ~ ~ ~ ~ g6 ~ ~ ~")
+  .s("gm_fx_crystal").slow(8)
+  .gain(0.07)
+  .delay(0.5).delaytime(0.5).delayfeedback(0.55)
+  .room(0.92)
+
+let seaBreeze = sound("pink")
+  .gain(perlin.slow(24).range(0.02, 0.06))
+  .lpf(sine.slow(14).range(120, 600))
+  .hpf(60)
+  .room(0.88).roomsize(0.8)
+
+stack(musicBox, mysteryPad, sparkle, seaBreeze)
+  .pianoroll({labels:1,active:'#e8c170',background:'transparent'})`,
+
   // ─── Community patches (credited, open-source) ───
 
   'Perlin Depths': `// Complex filter envelope composition
@@ -293,23 +475,89 @@ export function initMusicPanel() {
   const resizeHandle = document.getElementById('music-resize-handle');
   const editorWrap = document.getElementById('music-editor-wrap');
   const sceneSelect = document.getElementById('music-scene-select');
+  const presetGrid = document.getElementById('music-preset-grid');
+  const gridBtn = document.getElementById('music-grid-btn');
 
   let visible = false;
   let iframe = null;
-  let currentScene = Object.keys(SCENES)[0];
+  let currentScene = null;
+  let gridMode = true; // start in grid mode
+
+  const sceneNames = Object.keys(SCENES);
 
   // ── Populate scene dropdown from SCENES ──
   sceneSelect.innerHTML = '';
-  for (const name of Object.keys(SCENES)) {
+  for (const name of sceneNames) {
     const opt = document.createElement('option');
     opt.value = name;
     opt.textContent = name;
     sceneSelect.appendChild(opt);
   }
 
+  // ── Extract description from first comment line of each scene ──
+  function getSceneDesc(name) {
+    const code = SCENES[name];
+    const match = code.match(/^\/\/\s*(.+)/);
+    return match ? match[1] : '';
+  }
+
+  // ── Build preset grid ──
+  function buildGrid() {
+    presetGrid.innerHTML = '';
+    for (const name of sceneNames) {
+      const card = document.createElement('div');
+      card.className = 'music-preset-card';
+      if (name === currentScene) card.classList.add('playing');
+
+      const title = document.createElement('div');
+      title.className = 'music-preset-name';
+      title.textContent = name;
+
+      const desc = document.createElement('div');
+      desc.className = 'music-preset-desc';
+      desc.textContent = getSceneDesc(name);
+
+      card.appendChild(title);
+      card.appendChild(desc);
+
+      card.addEventListener('click', () => {
+        loadScene(name);
+        showEditor();
+      });
+
+      presetGrid.appendChild(card);
+    }
+  }
+
+  // ── Show/hide grid vs editor ──
+  function showGrid() {
+    gridMode = true;
+    presetGrid.classList.remove('grid-hidden');
+    editorWrap.style.display = 'none';
+    gridBtn.classList.add('active');
+    // Update playing state on cards
+    for (const card of presetGrid.children) {
+      const cardName = card.querySelector('.music-preset-name').textContent;
+      card.classList.toggle('playing', cardName === currentScene);
+    }
+  }
+
+  function showEditor() {
+    gridMode = false;
+    presetGrid.classList.add('grid-hidden');
+    editorWrap.style.display = '';
+    gridBtn.classList.remove('active');
+  }
+
+  buildGrid();
+  // Start in grid mode — hide editor, show grid
+  editorWrap.style.display = 'none';
+  gridBtn.classList.add('active');
+
   // ── Load scene into iframe ──
   function loadScene(name) {
     currentScene = name;
+    sceneSelect.value = name;
     const code = SCENES[name];
     const url = makeStrudelURL(code);
 
@@ -324,6 +572,13 @@ export function initMusicPanel() {
   // ── Scene selector ──
   sceneSelect.addEventListener('change', (e) => {
     loadScene(e.target.value);
+    if (gridMode) showEditor();
+  });
+
+  // ── Grid toggle button ──
+  gridBtn.addEventListener('click', () => {
+    if (gridMode) showEditor();
+    else showGrid();
   });
 
   // ── Toggle with M key ──
@@ -331,7 +586,10 @@ export function initMusicPanel() {
     visible = true;
     panel.classList.remove('hidden');
     panel.classList.remove('faded');
-    if (!iframe) loadScene(currentScene);
+    if (!iframe) {
+      // First open — show grid, no scene loaded yet
+      showGrid();
+    }
   }
 
   function hide() {
