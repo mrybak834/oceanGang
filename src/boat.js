@@ -654,8 +654,8 @@ export function createBoat(scene) {
   const wheelStand = new THREE.Mesh(wheelStandGeo, mastMaterial);
   wheelStand.position.set(0, -0.35, 0);
   wheelGroup.add(wheelStand);
-  wheelGroup.position.set(0, 1.7, 2.55);
-  wheelGroup.rotation.x = 0.32;
+  wheelGroup.position.set(0, 1.85, 1.95);
+  wheelGroup.rotation.x = -0.32;
   wheelGroup.rotation.z = Math.PI / 2;
   boat.add(wheelGroup);
 
@@ -799,27 +799,40 @@ export function createBoat(scene) {
         roughness: 0.86,
         side: THREE.DoubleSide,
       });
-      const capeGeo = new THREE.CylinderGeometry(0.08, 0.24, 0.62, 10, 1, true, Math.PI * 0.08, Math.PI * 0.84);
+      // Draped cape — wide plane with curved vertex positions
+      const capeGeo = new THREE.PlaneGeometry(0.38, 0.55, 8, 6);
+      const capePos = capeGeo.attributes.position;
+      for (let i = 0; i < capePos.count; i++) {
+        const x = capePos.getX(i);
+        const y = capePos.getY(i);
+        // Curve outward at the back for drape
+        const t = (y + 0.275) / 0.55; // 0 at bottom, 1 at top
+        const sideT = Math.abs(x) / 0.19;
+        // Push Z back more at bottom and edges for a flowing shape
+        const z = -0.06 * (1 - t) * (1 + sideT * 0.5);
+        // Widen at the bottom
+        const widen = 1 + (1 - t) * 0.35;
+        capePos.setX(i, x * widen);
+        capePos.setZ(i, z);
+      }
+      capeGeo.computeVertexNormals();
       const cape = new THREE.Mesh(capeGeo, capeMat);
-      cape.position.set(0, 0.57, -0.12);
-      cape.rotation.x = 0.14;
-      cape.rotation.y = Math.PI;
+      cape.position.set(0, 0.53, -0.1);
       person.add(cape);
 
       if (capeTrimColor) {
         const trimMat = new THREE.MeshStandardMaterial({ color: capeTrimColor, roughness: 0.65 });
+        // Shoulder clasps
         const claspGeo = new THREE.SphereGeometry(0.025, 6, 6);
         for (const side of [-1, 1]) {
           const clasp = new THREE.Mesh(claspGeo, trimMat);
-          clasp.position.set(side * 0.08, 0.73, -0.03);
+          clasp.position.set(side * 0.1, 0.73, -0.06);
           person.add(clasp);
         }
-
-        const trimGeo = new THREE.TorusGeometry(0.2, 0.01, 4, 16, Math.PI * 0.82);
+        // Bottom trim — a thin strip along cape bottom edge
+        const trimGeo = new THREE.BoxGeometry(0.52, 0.02, 0.02);
         const trim = new THREE.Mesh(trimGeo, trimMat);
-        trim.position.set(0, 0.33, -0.24);
-        trim.rotation.x = Math.PI / 2;
-        trim.rotation.z = Math.PI;
+        trim.position.set(0, 0.26, -0.13);
         person.add(trim);
       }
     }
@@ -974,8 +987,8 @@ export function createBoat(scene) {
     return person;
   }
 
-  // True Osmodius at the helm
-  const trueOsmodius = registerEditable('True Osmodius', createSailor(0, 1.95, 0, {
+  // True Osmodius at the helm (facing bow = -Z = Math.PI)
+  const trueOsmodius = registerEditable('True Osmodius', createSailor(0, 1.95, Math.PI, {
     hatType: 'noble',
     hatColor: 0x17131f,
     plumeColor: 0x8c1c13,

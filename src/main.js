@@ -308,105 +308,202 @@ function initShipEditor() {
   const editableObjects = boat?.userData?.editableObjects || [];
   if (!editableObjects.length) return null;
 
+  let editorActive = false;
+
+  // ── Render thumbnails for each object ──
+  const thumbSize = 96;
+  const thumbRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  thumbRenderer.setSize(thumbSize, thumbSize);
+  thumbRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  thumbRenderer.toneMappingExposure = 0.8;
+
+  const thumbScene = new THREE.Scene();
+  thumbScene.add(new THREE.AmbientLight(0x8899bb, 0.8));
+  const thumbDirLight = new THREE.DirectionalLight(0xfff4e5, 2.5);
+  thumbDirLight.position.set(2, 4, 3);
+  thumbScene.add(thumbDirLight);
+
+  const thumbCamera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
+
+  function renderThumbnail(object) {
+    // Clone or directly add to thumb scene temporarily
+    const clone = object.clone(true);
+    // Reset position for rendering
+    clone.position.set(0, 0, 0);
+    clone.rotation.set(0, 0.4, 0);
+    thumbScene.add(clone);
+
+    // Fit camera to object bounds
+    const box = new THREE.Box3().setFromObject(clone);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const dist = maxDim * 1.8;
+
+    thumbCamera.position.set(center.x + dist * 0.5, center.y + dist * 0.3, center.z + dist);
+    thumbCamera.lookAt(center);
+
+    thumbRenderer.render(thumbScene, thumbCamera);
+    const dataUrl = thumbRenderer.domElement.toDataURL();
+    thumbScene.remove(clone);
+    return dataUrl;
+  }
+
+  const thumbnails = editableObjects.map((obj) => renderThumbnail(obj));
+  thumbRenderer.dispose();
+
+  // ── Panel ──
   const panel = document.createElement('div');
   Object.assign(panel.style, {
     position: 'fixed',
     top: '20px',
     left: '20px',
-    width: '240px',
+    width: '320px',
+    maxHeight: 'calc(100vh - 40px)',
     padding: '14px',
     borderRadius: '12px',
-    background: 'rgba(10, 18, 24, 0.82)',
+    background: 'rgba(10, 18, 24, 0.88)',
     color: '#f5ead7',
     fontFamily: 'Georgia, serif',
     zIndex: '250',
     boxShadow: '0 12px 30px rgba(0,0,0,0.35)',
-    backdropFilter: 'blur(8px)',
+    backdropFilter: 'blur(10px)',
     pointerEvents: 'auto',
+    display: 'none',
+    overflowY: 'auto',
   });
 
   const title = document.createElement('div');
-  title.textContent = 'Ship Objects';
+  title.textContent = 'Ship Editor';
   Object.assign(title.style, {
     fontSize: '18px',
     letterSpacing: '0.06em',
-    marginBottom: '10px',
+    marginBottom: '12px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   });
+  const titleHint = document.createElement('span');
+  titleHint.textContent = 'E to close';
+  Object.assign(titleHint.style, { fontSize: '11px', color: 'rgba(245,234,215,0.4)', fontWeight: 'normal' });
+  title.appendChild(titleHint);
   panel.appendChild(title);
 
-  const select = document.createElement('select');
-  Object.assign(select.style, {
-    width: '100%',
-    marginBottom: '12px',
-    padding: '8px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.16)',
-    background: 'rgba(255,255,255,0.08)',
-    color: '#f5ead7',
-  });
-  editableObjects.forEach((object, index) => {
-    const option = document.createElement('option');
-    option.value = String(index);
-    option.textContent = object.name || `Object ${index + 1}`;
-    select.appendChild(option);
-  });
-  panel.appendChild(select);
-
-  const modeRow = document.createElement('div');
-  Object.assign(modeRow.style, {
-    display: 'flex',
+  // ── Object button grid ──
+  const grid = document.createElement('div');
+  Object.assign(grid.style, {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))',
     gap: '8px',
     marginBottom: '12px',
   });
+  panel.appendChild(grid);
 
-  const fields = {};
+  const buttons = [];
+  editableObjects.forEach((obj, index) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    Object.assign(btn.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '4px',
+      padding: '6px 4px',
+      borderRadius: '8px',
+      border: '2px solid rgba(255,255,255,0.08)',
+      background: 'rgba(255,255,255,0.04)',
+      color: '#f5ead7',
+      cursor: 'pointer',
+      transition: 'border-color 0.15s, background 0.15s',
+    });
+
+    const img = document.createElement('img');
+    img.src = thumbnails[index];
+    Object.assign(img.style, {
+      width: '64px',
+      height: '64px',
+      objectFit: 'contain',
+      borderRadius: '4px',
+      pointerEvents: 'none',
+    });
+    btn.appendChild(img);
+
+    const label = document.createElement('span');
+    label.textContent = obj.name || `Object ${index + 1}`;
+    Object.assign(label.style, {
+      fontSize: '10px',
+      lineHeight: '1.2',
+      textAlign: 'center',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      maxWidth: '80px',
+    });
+    btn.appendChild(label);
+
+    btn.addEventListener('click', () => selectObject(obj));
+    btn.addEventListener('dblclick', () => lockObject(obj));
+    grid.appendChild(btn);
+    buttons.push({ btn, obj });
+  });
+
+  // ── Settings section (hidden until selection) ──
+  const settingsDiv = document.createElement('div');
+  settingsDiv.style.display = 'none';
+  panel.appendChild(settingsDiv);
+
+  const settingsTitle = document.createElement('div');
+  Object.assign(settingsTitle.style, {
+    fontSize: '14px',
+    marginBottom: '8px',
+    color: 'rgba(245,234,215,0.8)',
+    borderTop: '1px solid rgba(255,255,255,0.08)',
+    paddingTop: '10px',
+  });
+  settingsDiv.appendChild(settingsTitle);
+
   const coords = document.createElement('div');
   Object.assign(coords.style, {
     display: 'grid',
     gridTemplateColumns: '20px 1fr',
-    gap: '8px 10px',
+    gap: '6px 10px',
     alignItems: 'center',
   });
+  settingsDiv.appendChild(coords);
 
+  const fields = {};
   ['x', 'y', 'z'].forEach((axis) => {
     const label = document.createElement('label');
     label.textContent = axis.toUpperCase();
-    label.htmlFor = `ship-editor-${axis}`;
+    Object.assign(label.style, { fontSize: '13px' });
     coords.appendChild(label);
 
     const input = document.createElement('input');
-    input.id = `ship-editor-${axis}`;
     input.type = 'number';
     input.step = '0.1';
     Object.assign(input.style, {
       width: '100%',
-      padding: '7px 8px',
-      borderRadius: '8px',
+      padding: '6px 8px',
+      borderRadius: '6px',
       border: '1px solid rgba(255,255,255,0.16)',
       background: 'rgba(255,255,255,0.06)',
       color: '#f5ead7',
+      fontSize: '13px',
     });
     fields[axis] = input;
     coords.appendChild(input);
   });
 
-  const hint = document.createElement('div');
-  hint.textContent = 'Use the gizmo or edit local position values.';
-  Object.assign(hint.style, {
-    marginTop: '10px',
-    fontSize: '12px',
-    color: 'rgba(245, 234, 215, 0.72)',
-  });
-
-  panel.appendChild(modeRow);
-  panel.appendChild(coords);
-  panel.appendChild(hint);
   document.body.appendChild(panel);
 
+  // ── Gizmo + helper ──
   const transform = new TransformControls(camera, renderer.domElement);
   transform.setMode('translate');
   transform.setSpace('local');
-  scene.add(transform);
+  transform.enabled = false;
+  const transformHelper = transform.getHelper();
+  transformHelper.visible = false;
+  scene.add(transformHelper);
 
   const helper = new THREE.BoxHelper(editableObjects[0], 0xf5c542);
   helper.visible = false;
@@ -414,13 +511,13 @@ function initShipEditor() {
 
   const editor = {
     panel,
-    select,
     transform,
     helper,
     selectedObject: null,
     isDragging: false,
   };
 
+  // ── Selection logic ──
   function syncFields() {
     if (!editor.selectedObject) return;
     fields.x.value = editor.selectedObject.position.x.toFixed(2);
@@ -428,35 +525,63 @@ function initShipEditor() {
     fields.z.value = editor.selectedObject.position.z.toFixed(2);
   }
 
-  function selectObject(object) {
-    editor.selectedObject = object;
-    transform.attach(object);
-    helper.setFromObject(object);
-    helper.visible = true;
-    syncFields();
+  let locked = false; // true = gizmo attached, object can be dragged
+
+  function highlightButtons(object) {
+    buttons.forEach(({ btn, obj }) => {
+      const active = obj === object;
+      btn.style.borderColor = active ? 'rgba(245, 196, 66, 0.7)' : 'rgba(255,255,255,0.08)';
+      btn.style.background = active ? 'rgba(245, 196, 66, 0.12)' : 'rgba(255,255,255,0.04)';
+    });
   }
 
-  ['translate'].forEach((mode) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = mode[0].toUpperCase() + mode.slice(1);
-    Object.assign(button.style, {
-      flex: '1',
-      padding: '8px 10px',
-      borderRadius: '8px',
-      border: '1px solid rgba(255,255,255,0.18)',
-      background: 'rgba(15, 139, 141, 0.25)',
-      color: '#f5ead7',
-      cursor: 'pointer',
-    });
-    button.addEventListener('click', () => transform.setMode(mode));
-    modeRow.appendChild(button);
-  });
+  function selectObject(object) {
+    // If already locked on this object, unlock
+    if (locked && editor.selectedObject === object) {
+      unlock();
+      return;
+    }
+    // Select (highlight + box) but don't attach gizmo yet
+    unlock();
+    editor.selectedObject = object;
+    helper.setFromObject(object);
+    helper.visible = true;
+    settingsDiv.style.display = '';
+    settingsTitle.textContent = object.name || 'Object';
+    syncFields();
+    highlightButtons(object);
+  }
 
-  select.addEventListener('change', () => {
-    selectObject(editableObjects[Number(select.value)]);
-  });
+  function lockObject(object) {
+    editor.selectedObject = object;
+    locked = true;
+    transform.attach(object);
+    transformHelper.visible = true;
+    transform.enabled = true;
+    helper.setFromObject(object);
+    helper.visible = true;
+    settingsDiv.style.display = '';
+    settingsTitle.textContent = (object.name || 'Object') + ' — drag to move';
+    syncFields();
+    highlightButtons(object);
+  }
 
+  function unlock() {
+    locked = false;
+    transform.detach();
+    transformHelper.visible = false;
+    transform.enabled = false;
+  }
+
+  function deselect() {
+    unlock();
+    editor.selectedObject = null;
+    helper.visible = false;
+    settingsDiv.style.display = 'none';
+    highlightButtons(null);
+  }
+
+  // ── Coordinate input handlers ──
   Object.entries(fields).forEach(([axis, input]) => {
     input.addEventListener('input', () => {
       if (!editor.selectedObject) return;
@@ -477,10 +602,94 @@ function initShipEditor() {
     isMouseDragging = false;
   });
 
-  select.value = '0';
-  const defaultIndex = Math.max(0, editableObjects.findIndex((object) => object.name === 'True Osmodius'));
-  select.value = String(defaultIndex);
-  selectObject(editableObjects[defaultIndex]);
+  // ── Raycaster for click/double-click in editor mode ──
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  function raycastEditable(e) {
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(editableObjects, true);
+    if (!hits.length) return null;
+    let hit = hits[0].object;
+    while (hit && !editableObjects.includes(hit)) hit = hit.parent;
+    return hit;
+  }
+
+  // Single click = select (highlight + box helper, no gizmo)
+  // If locked, clicking empty space unlocks
+  renderer.domElement.addEventListener('click', (e) => {
+    if (!editorActive || e.button !== 0) return;
+    if (e.target !== renderer.domElement) return;
+    // Skip if this was a gizmo drag
+    if (editor.isDragging) return;
+    const hit = raycastEditable(e);
+    if (locked) {
+      if (!hit) {
+        // Click empty = unlock but keep selection
+        unlock();
+        if (editor.selectedObject) {
+          settingsTitle.textContent = editor.selectedObject.name || 'Object';
+        }
+      }
+      return;
+    }
+    if (hit) {
+      selectObject(hit);
+    } else {
+      deselect();
+    }
+  });
+
+  // Double-click = lock (attach gizmo so subsequent drags move the object)
+  renderer.domElement.addEventListener('dblclick', (e) => {
+    if (!editorActive || e.button !== 0) return;
+    if (e.target !== renderer.domElement) return;
+    const hit = raycastEditable(e);
+    if (hit) {
+      lockObject(hit);
+    } else if (locked) {
+      // Double-click empty space = unlock
+      unlock();
+      if (editor.selectedObject) {
+        settingsTitle.textContent = editor.selectedObject.name || 'Object';
+      }
+    }
+  });
+
+  // ── Toggle editor with E key ──
+  function showEditor() {
+    editorActive = true;
+    panel.style.display = '';
+    if (locked && editor.selectedObject) {
+      transformHelper.visible = true;
+      transform.enabled = true;
+    }
+    if (editor.selectedObject) {
+      helper.visible = true;
+    }
+  }
+
+  function hideEditor() {
+    editorActive = false;
+    panel.style.display = 'none';
+    deselect();
+    transformHelper.visible = false;
+    transform.enabled = false;
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target.closest('#music-panel') || e.target.closest('.sky-settings') || e.target.tagName === 'INPUT') return;
+    if (e.code === 'KeyE' && !e.repeat) {
+      if (editorActive) hideEditor();
+      else showEditor();
+    }
+  });
+
+  // Block game input while interacting with panel
+  panel.addEventListener('keydown', (e) => { e.stopPropagation(); });
+  panel.addEventListener('keyup', (e) => { e.stopPropagation(); });
 
   return editor;
 }

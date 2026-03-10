@@ -571,6 +571,7 @@ export function initMusicPanel(shipAudio) {
     const editor = repl.editor;
     if (!editor || editor.__oceanGangHooked) return;
 
+    const originalStop = editor.stop.bind(editor);
     const originalEvaluate = editor.evaluate.bind(editor);
     editor.evaluate = async (autostart = true) => {
       const code = editor.code;
@@ -580,10 +581,16 @@ export function initMusicPanel(shipAudio) {
       isLoading = true;
       updateCardStates();
       try {
+        if (autostart) {
+          suppressEditorSync = true;
+          await originalStop();
+          suppressEditorSync = false;
+        }
         const result = await originalEvaluate(autostart);
         syncEditorState(sceneName, code, autostart);
         return result;
       } catch (err) {
+        suppressEditorSync = false;
         sceneDrafts[sceneName] = code;
         isPlaying = false;
         isLoading = false;
@@ -594,7 +601,6 @@ export function initMusicPanel(shipAudio) {
       }
     };
 
-    const originalStop = editor.stop.bind(editor);
     editor.stop = async () => {
       const sceneName = currentScene;
       const result = await originalStop();
