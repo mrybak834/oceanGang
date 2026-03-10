@@ -431,15 +431,7 @@ canvas {
 }
 
 .music-btn-grid {
-  background: rgba(255,255,255,0.12);
-  font-size: 11px;
-}
-.music-btn-grid:hover {
-  background: rgba(255,255,255,0.25);
-}
-.music-btn-grid.active {
-  background: rgba(91,155,213,0.3);
-  box-shadow: 0 0 0 1px rgba(91,155,213,0.5);
+  display: none;
 }
 
 .music-editor-wrap {
@@ -477,6 +469,17 @@ canvas {
 
 .music-repl-root .cm-scroller {
   min-height: 100%;
+}
+
+.music-panel {
+  gap: 0;
+}
+
+.music-preset-grid {
+  flex: 0 0 170px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(3, 8, 20, 0.35);
 }
 
 /* ─── Sky & Ocean Settings Panel ─── */

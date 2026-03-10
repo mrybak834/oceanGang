@@ -1,7 +1,6 @@
 // ─── Strudel Music Panel — scenes, toggle, drag, resize, fade ───
-import { initStrudel, evaluate as strudelEvaluate, hush as strudelHush } from '@strudel/web';
 import '@strudel/repl';
-import { registerSoundfontsLocal } from './strudelSoundfonts.js';
+import { getSuperdoughAudioController } from 'superdough';
 
 export const MUSIC_SCENE_SYNC_EVENT = 'oceangang:music-scene-sync';
 export const MUSIC_PLAYBACK_EVENT = 'oceangang:music-playback';
@@ -495,45 +494,6 @@ let atmosphere = sound("<brown pink>")
 stack(kick, sub, hats, lead, claps, atmosphere)`,
 };
 
-// Scale numeric .gain(N) values by a volume multiplier
-function scaleGains(code, vol) {
-  return code.replace(/\.gain\((\d+\.?\d*)\)/g, (_, n) => {
-    return `.gain(${(parseFloat(n) * vol).toFixed(4)})`;
-  });
-}
-
-// ─── Strudel engine (direct ESM, no iframe) ───
-let strudelReady = false;
-let strudelInitPromise = null;
-
-function ensureStrudel() {
-  if (strudelReady) return Promise.resolve();
-  if (strudelInitPromise) return strudelInitPromise;
-  strudelInitPromise = initStrudel({
-    prebake: () => registerSoundfontsLocal(),
-  }).then(() => { strudelReady = true; });
-  return strudelInitPromise;
-}
-
-async function strudelPlay(code) {
-  await ensureStrudel();
-  await strudelEvaluate(code);
-}
-
-function strudelStop() {
-  if (strudelReady) {
-    try { strudelHush(); } catch (e) { /* ignore if not playing */ }
-  }
-}
-
-// Strip visualization calls — they need a REPL canvas we don't have
-function stripViz(code) {
-  return code
-    .replace(/\.\s*pianoroll\s*\([^)]*\)/g, '')
-    .replace(/\.\s*scope\s*\([^)]*\)/g, '')
-    .replace(/\.\s*spiral\s*\([^)]*\)/g, '');
-}
-
 export function initMusicPanel(shipAudio) {
   const panel = document.getElementById('music-panel');
   const titlebar = document.getElementById('music-titlebar');
@@ -556,12 +516,16 @@ export function initMusicPanel(shipAudio) {
 
   const sceneNames = Object.keys(SCENES);
 
-  function getSceneCode(name, { applyVolume = false } = {}) {
-    let code = sceneDrafts[name] || SCENES[name];
-    if (applyVolume && musicVolume < 1.0) {
-      code = scaleGains(code, musicVolume);
-    }
-    return code;
+  function getSceneCode(name) {
+    return sceneDrafts[name] || SCENES[name];
+  }
+
+  function syncMusicVolume() {
+    const controller = getSuperdoughAudioController?.();
+    const gainParam = controller?.output?.destinationGain?.gain;
+    const audioContext = controller?.audioContext;
+    if (!gainParam || !audioContext) return;
+    gainParam.setTargetAtTime(musicVolume, audioContext.currentTime, 0.05);
   }
 
   function emitMusicSceneSync(sceneName, code, { source, playing } = {}) {
@@ -658,6 +622,7 @@ export function initMusicPanel(shipAudio) {
 
       embeddedRepl.nextElementSibling?.classList.add('music-repl-root');
       installReplHooks(embeddedRepl);
+      syncMusicVolume();
       return embeddedRepl;
     });
 
@@ -729,35 +694,29 @@ export function initMusicPanel(shipAudio) {
     if (isLoading) return;
 
     if (currentScene === name && isPlaying) {
-      strudelStop();
-      emitPlaybackState(currentScene, false, 'grid');
+      await stopEmbeddedRepl();
+      emitPlaybackState(currentScene, false, 'shared-repl');
       isPlaying = false;
-      currentScene = null;
       updateCardStates();
       return;
     }
 
     currentScene = name;
     sceneSelect.value = name;
-    loadScene(name);
+    await loadScene(name);
     isLoading = true;
     isPlaying = false;
     updateCardStates();
 
     try {
-      let code = getSceneCode(name, { applyVolume: true });
-      await strudelPlay(code);
-      isPlaying = true;
-      emitMusicSceneSync(name, sceneDrafts[name] || SCENES[name], { source: 'grid', playing: true });
-      emitPlaybackState(name, true, 'grid');
+      const repl = await ensureEmbeddedRepl();
+      await repl.editor.evaluate();
     } catch (err) {
       console.error('Strudel error:', err);
       isPlaying = false;
-      emitPlaybackState(name, false, 'grid-error');
-      currentScene = null;
+      isLoading = false;
+      emitPlaybackState(name, false, 'shared-repl-error');
     }
-    isLoading = false;
-    updateCardStates();
   }
 
   buildGrid();
@@ -790,12 +749,7 @@ export function initMusicPanel(shipAudio) {
 
   musicVolSlider.addEventListener('change', async (e) => {
     musicVolume = e.target.value / 100;
-    if (currentScene && isPlaying && strudelReady) {
-      let code = getSceneCode(currentScene, { applyVolume: true });
-      await strudelPlay(code);
-      emitMusicSceneSync(currentScene, sceneDrafts[currentScene] || SCENES[currentScene], { source: 'grid-volume', playing: true });
-      emitPlaybackState(currentScene, true, 'grid-volume');
-    }
+    syncMusicVolume();
   });
 
   // ── Toggle with M key ──
