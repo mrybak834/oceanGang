@@ -24,6 +24,10 @@ export function createShipAudio() {
   let farWaveSrc, farWaveLPF, farWaveGain, farWaveLFO, farWaveLFOGain;
   let rumbleSrc, rumbleLPF, rumbleGain;
   let foamSrc, foamBPF, foamGain, foamLFO, foamLFOGain;
+  // Wind layers
+  let windBodySrc, windBodyLPF, windBodyGain;
+  let windMidSrc, windMidBPF, windMidGain;
+  let windRushSrc, windRushHPF, windRushLPF, windRushGain;
   let masterGain;
 
   function makeBrownNoise(audioCtx, lengthSec) {
@@ -210,6 +214,106 @@ export function createShipAudio() {
     foamGain.connect(masterGain);
     foamSrc.start();
     foamLFO.start();
+
+    // ── Wind: 3-layer dynamic wind tied to boat speed + boost ──
+    // Uses filtered-noise modulators instead of periodic LFOs so gusting
+    // sounds organic and never repeats. All layers use low Q for broadband
+    // character — no resonant whistling.
+
+    const windBrownBuf = makeBrownNoise(ctx, 6);
+    const windWhiteBuf = makeWhiteNoise(ctx, 5);
+    const windWhiteBuf2 = makeWhiteNoise(ctx, 7);
+
+    // Helper: filtered-noise modulator (slow random wandering)
+    // White noise → aggressive LPF produces slowly drifting control signal
+    function makeNoiseModulator(cutoffHz, depth) {
+      const noiseBuf = makeWhiteNoise(ctx, 10);
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuf;
+      src.loop = true;
+      const lpf = ctx.createBiquadFilter();
+      lpf.type = 'lowpass';
+      lpf.frequency.value = cutoffHz; // very low = very slow drift
+      lpf.Q.value = 0.5;
+      const gain = ctx.createGain();
+      gain.gain.value = depth;
+      src.connect(lpf);
+      lpf.connect(gain);
+      src.start();
+      return { output: gain, depthNode: gain };
+    }
+
+    // Layer 1 — Wind body: brown noise → LPF, slow drift modulation
+    windBodySrc = ctx.createBufferSource();
+    windBodySrc.buffer = windBrownBuf;
+    windBodySrc.loop = true;
+
+    windBodyLPF = ctx.createBiquadFilter();
+    windBodyLPF.type = 'lowpass';
+    windBodyLPF.frequency.value = 250;
+    windBodyLPF.Q.value = 0.4;
+
+    windBodyGain = ctx.createGain();
+    windBodyGain.gain.value = 0;
+
+    // Slow random cutoff drift (±40 Hz, ~0.5 Hz noise cutoff → changes every ~2s)
+    const bodyMod = makeNoiseModulator(0.5, 40);
+    bodyMod.output.connect(windBodyLPF.frequency);
+
+    windBodySrc.connect(windBodyLPF);
+    windBodyLPF.connect(windBodyGain);
+    windBodyGain.connect(masterGain);
+    windBodySrc.start();
+
+    // Layer 2 — Wind mid: white noise → BPF, gentle drift
+    windMidSrc = ctx.createBufferSource();
+    windMidSrc.buffer = windWhiteBuf;
+    windMidSrc.loop = true;
+
+    windMidBPF = ctx.createBiquadFilter();
+    windMidBPF.type = 'bandpass';
+    windMidBPF.frequency.value = 1000;
+    windMidBPF.Q.value = 0.4;
+
+    windMidGain = ctx.createGain();
+    windMidGain.gain.value = 0;
+
+    // Slightly faster drift for mid layer (±60 Hz)
+    const midMod = makeNoiseModulator(0.8, 60);
+    midMod.output.connect(windMidBPF.frequency);
+
+    windMidSrc.connect(windMidBPF);
+    windMidBPF.connect(windMidGain);
+    windMidGain.connect(masterGain);
+    windMidSrc.start();
+
+    // Layer 3 — Wind rush: white noise → HPF + LPF band, for boost
+    windRushSrc = ctx.createBufferSource();
+    windRushSrc.buffer = windWhiteBuf2;
+    windRushSrc.loop = true;
+
+    windRushHPF = ctx.createBiquadFilter();
+    windRushHPF.type = 'highpass';
+    windRushHPF.frequency.value = 1500;
+    windRushHPF.Q.value = 0.3;
+
+    windRushLPF = ctx.createBiquadFilter();
+    windRushLPF.type = 'lowpass';
+    windRushLPF.frequency.value = 5000;
+    windRushLPF.Q.value = 0.3;
+
+    windRushGain = ctx.createGain();
+    windRushGain.gain.value = 0;
+
+    // Drift modulator for rush band edges
+    const rushMod = makeNoiseModulator(1.0, 80);
+    rushMod.output.connect(windRushHPF.frequency);
+
+    windRushSrc.connect(windRushHPF);
+    windRushHPF.connect(windRushLPF);
+    windRushLPF.connect(windRushGain);
+    windRushGain.connect(masterGain);
+    windRushSrc.start();
 
     // ── Water laps: noise bursts with filter sweeps, randomly triggered ──
     // Technique: white noise → sweeping lowpass + bandpass body → gain envelope
@@ -455,6 +559,8 @@ export function createShipAudio() {
 
     const absSpeed = Math.abs(speed);
     const t = Math.min(absSpeed / 40, 1); // 0–1 normalized speed
+    const b = boost || 0;                 // 0–1 boost amount
+    const effective = Math.min(t + b * 0.5, 1); // combined intensity
     const now = ctx.currentTime;
     const smooth = 0.12; // smoothing time constant
 
@@ -466,6 +572,25 @@ export function createShipAudio() {
     const splashT = Math.max(0, (t - 0.2) / 0.8); // kicks in at 20% speed
     splashFilter.frequency.setTargetAtTime(1500 + splashT * 3000, now, smooth);
     splashGain.gain.setTargetAtTime(splashT * 0.04, now, smooth);
+
+    // ── Wind layers: dynamic response to speed + boost ──
+    const windSmooth = 0.35; // slower transitions for natural feel
+
+    // Body layer: low broadband whoosh, scales with speed + mild boost bump
+    windBodyLPF.frequency.setTargetAtTime(250 + t * 250 + b * 150, now, windSmooth);
+    windBodyGain.gain.setTargetAtTime(t * 0.035 + b * 0.02, now, windSmooth);
+
+    // Mid layer: kicks in at ~30% speed, boost opens it up significantly
+    const midT = Math.max(0, (t - 0.3) / 0.7);
+    windMidBPF.frequency.setTargetAtTime(1000 + midT * 400 + b * 500, now, windSmooth);
+    windMidGain.gain.setTargetAtTime(midT * 0.018 + b * 0.025, now, windSmooth);
+
+    // Rush layer: airy high-end, boost is the primary driver
+    const rushBase = Math.max(0, (t - 0.5) / 0.5) * 0.012;
+    const rushBoost = b * 0.045;
+    windRushHPF.frequency.setTargetAtTime(1500 + b * 1000, now, windSmooth);
+    windRushLPF.frequency.setTargetAtTime(5000 + b * 3000, now, windSmooth);
+    windRushGain.gain.setTargetAtTime(rushBase + rushBoost, now, windSmooth);
   }
 
   function setVolume(v) {
