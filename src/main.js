@@ -93,23 +93,21 @@ function init() {
   // Wind boost effect (3D streaks in world space)
   windEffect = createWindEffect(scene);
 
-  // Lighting — boost on mobile where PBR envmaps may fail
-  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  if (isMobile) renderer.toneMappingExposure = 1.0;
-
-  const ambientLight = new THREE.AmbientLight(0x6688aa, isMobile ? 1.4 : 0.8);
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0x6688aa, 0.8);
   scene.add(ambientLight);
 
-  const hemiLight = new THREE.HemisphereLight(0xb1e1ff, 0x886633, isMobile ? 1.2 : 0.6);
+  const hemiLight = new THREE.HemisphereLight(0xb1e1ff, 0x886633, 0.6);
   scene.add(hemiLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xfff4e5, isMobile ? 3.0 : 2.0);
+  const directionalLight = new THREE.DirectionalLight(0xfff4e5, 2.0);
   directionalLight.position.set(1, 3, 1);
   scene.add(directionalLight);
 
   // Ocean + Sky
   ocean = createOcean(scene, renderer);
   water = ocean.water;
+  scene.environmentIntensity = 0.4;
 
   // Boat
   boat = createBoat(scene);
@@ -149,9 +147,9 @@ function init() {
   });
   window.addEventListener('mousemove', (e) => {
     if (!isMouseDragging) return;
-    if (shipEditor?.editorActive) {
+    if (shipEditor?.editorActive && !shipEditor.isDragging) {
       shipEditor.handleMouseMove(e.movementX, e.movementY);
-    } else {
+    } else if (!shipEditor?.editorActive) {
       cameraYaw -= e.movementX * 0.005;
       cameraPitch = Math.max(pitchMin, Math.min(pitchMax, cameraPitch - e.movementY * 0.005));
     }
@@ -293,6 +291,7 @@ function animate() {
   if (shipEditor?.helper && shipEditor.selectedObject) {
     shipEditor.helper.update();
   }
+  if (shipEditor?.renderDesigner) shipEditor.renderDesigner();
 
   // Set perf context (before render so it captures current frame state)
   let visibleIslandCount = 0;
@@ -522,7 +521,7 @@ function initShipEditor() {
     btn.appendChild(label);
 
     btn.addEventListener('click', () => selectObject(obj));
-    btn.addEventListener('dblclick', () => lockObject(obj));
+    btn.addEventListener('dblclick', () => { focusCameraOn(obj); lockObject(obj); });
     grid.appendChild(btn);
     buttons.push({ btn, obj });
   });
@@ -574,6 +573,323 @@ function initShipEditor() {
     coords.appendChild(input);
   });
 
+  // ── Tabs: Parts / Designer ──
+  const tabBar = document.createElement('div');
+  Object.assign(tabBar.style, {
+    display: 'flex', gap: '0', marginBottom: '10px',
+    borderBottom: '1px solid rgba(255,255,255,0.12)',
+  });
+  const tabBtnStyle = (active) => ({
+    flex: '1', padding: '7px 0', textAlign: 'center', cursor: 'pointer',
+    fontSize: '12px', letterSpacing: '0.05em',
+    background: 'none', border: 'none', color: active ? '#f5c542' : 'rgba(245,234,215,0.5)',
+    borderBottom: active ? '2px solid #f5c542' : '2px solid transparent',
+  });
+  const partsTab = document.createElement('button');
+  partsTab.textContent = 'Parts';
+  Object.assign(partsTab.style, tabBtnStyle(true));
+  const designerTab = document.createElement('button');
+  designerTab.textContent = 'Designer';
+  Object.assign(designerTab.style, tabBtnStyle(false));
+  tabBar.appendChild(partsTab);
+  tabBar.appendChild(designerTab);
+  panel.insertBefore(tabBar, grid);
+
+  const designerDiv = document.createElement('div');
+  designerDiv.style.display = 'none';
+  panel.appendChild(designerDiv);
+
+  let activeTab = 'parts';
+  function switchTab(tab) {
+    activeTab = tab;
+    Object.assign(partsTab.style, tabBtnStyle(tab === 'parts'));
+    Object.assign(designerTab.style, tabBtnStyle(tab === 'designer'));
+    grid.style.display = tab === 'parts' ? '' : 'none';
+    settingsDiv.style.display = tab === 'parts' && editor.selectedObject ? '' : 'none';
+    designerDiv.style.display = tab === 'designer' ? '' : 'none';
+    if (tab === 'designer') openDesigner();
+  }
+  partsTab.addEventListener('click', () => switchTab('parts'));
+  designerTab.addEventListener('click', () => switchTab('designer'));
+
+  // ── Designer: isolated 3D preview + child part editing ──
+  const DESIGNER_STORAGE_KEY = 'oceanGang_designer_v1';
+
+  function loadDesignerState() {
+    try {
+      const raw = localStorage.getItem(DESIGNER_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+
+  function saveDesignerState(state) {
+    try { localStorage.setItem(DESIGNER_STORAGE_KEY, JSON.stringify(state)); } catch {}
+  }
+
+  // Apply persisted child positions on startup
+  function applyPersistedPositions() {
+    const state = loadDesignerState();
+    for (const obj of editableObjects) {
+      const objState = state[obj.name];
+      if (!objState) continue;
+      obj.traverse((child) => {
+        if (child === obj) return;
+        const key = child.name || child.uuid;
+        if (objState[key]) {
+          const p = objState[key];
+          child.position.set(p.x, p.y, p.z);
+        }
+      });
+    }
+  }
+  applyPersistedPositions();
+
+  // Designer viewport
+  const designerCanvas = document.createElement('canvas');
+  Object.assign(designerCanvas.style, {
+    width: '100%', height: '200px', borderRadius: '8px',
+    background: 'rgba(0,0,0,0.4)', marginBottom: '8px', cursor: 'grab',
+  });
+  designerDiv.appendChild(designerCanvas);
+
+  const dRenderer = new THREE.WebGLRenderer({ canvas: designerCanvas, alpha: true, antialias: true });
+  dRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  dRenderer.toneMappingExposure = 0.9;
+  const dScene = new THREE.Scene();
+  dScene.add(new THREE.AmbientLight(0x8899bb, 1.0));
+  const dDirLight = new THREE.DirectionalLight(0xfff4e5, 2.5);
+  dDirLight.position.set(2, 4, 3);
+  dScene.add(dDirLight);
+  const dHemiLight = new THREE.HemisphereLight(0xb1e1ff, 0x886633, 0.6);
+  dScene.add(dHemiLight);
+  const dCamera = new THREE.PerspectiveCamera(40, 1, 0.01, 200);
+  let dClone = null;
+  let dSourceObj = null;
+  let dChildMap = new Map(); // clone child -> source child
+  let dSelectedChild = null;
+  let dOrbitYaw = 0.4, dOrbitPitch = 0.3, dOrbitDist = 10;
+  let dOrbitCenter = new THREE.Vector3();
+
+  // Designer child list
+  const dChildList = document.createElement('div');
+  Object.assign(dChildList.style, {
+    maxHeight: '180px', overflowY: 'auto', marginBottom: '8px',
+  });
+  designerDiv.appendChild(dChildList);
+
+  // Designer child position fields
+  const dFieldsDiv = document.createElement('div');
+  dFieldsDiv.style.display = 'none';
+  designerDiv.appendChild(dFieldsDiv);
+
+  const dFieldsTitle = document.createElement('div');
+  Object.assign(dFieldsTitle.style, { fontSize: '12px', marginBottom: '6px', color: 'rgba(245,234,215,0.7)' });
+  dFieldsDiv.appendChild(dFieldsTitle);
+
+  const dCoords = document.createElement('div');
+  Object.assign(dCoords.style, {
+    display: 'grid', gridTemplateColumns: '20px 1fr', gap: '4px 8px', alignItems: 'center',
+  });
+  dFieldsDiv.appendChild(dCoords);
+
+  const dFields = {};
+  ['x', 'y', 'z'].forEach((axis) => {
+    const label = document.createElement('label');
+    label.textContent = axis.toUpperCase();
+    Object.assign(label.style, { fontSize: '12px' });
+    dCoords.appendChild(label);
+    const input = document.createElement('input');
+    input.type = 'number'; input.step = '0.05';
+    Object.assign(input.style, {
+      width: '100%', padding: '4px 6px', borderRadius: '5px',
+      border: '1px solid rgba(255,255,255,0.16)',
+      background: 'rgba(255,255,255,0.06)', color: '#f5ead7', fontSize: '12px',
+    });
+    input.addEventListener('input', () => {
+      if (!dSelectedChild) return;
+      const val = Number.parseFloat(input.value);
+      if (!Number.isFinite(val)) return;
+      // Update clone child
+      dSelectedChild.position[axis] = val;
+      // Update source child
+      const srcChild = dChildMap.get(dSelectedChild);
+      if (srcChild) srcChild.position[axis] = val;
+      persistDesignerChild();
+    });
+    dFields[axis] = input;
+    dCoords.appendChild(input);
+  });
+
+  function persistDesignerChild() {
+    if (!dSourceObj || !dSelectedChild) return;
+    const srcChild = dChildMap.get(dSelectedChild);
+    if (!srcChild) return;
+    const state = loadDesignerState();
+    if (!state[dSourceObj.name]) state[dSourceObj.name] = {};
+    const key = srcChild.name || srcChild.uuid;
+    state[dSourceObj.name][key] = {
+      x: srcChild.position.x, y: srcChild.position.y, z: srcChild.position.z,
+    };
+    saveDesignerState(state);
+  }
+
+  function syncDFields() {
+    if (!dSelectedChild) return;
+    dFields.x.value = dSelectedChild.position.x.toFixed(3);
+    dFields.y.value = dSelectedChild.position.y.toFixed(3);
+    dFields.z.value = dSelectedChild.position.z.toFixed(3);
+  }
+
+  // Highlight selected child in preview
+  const dBoxHelper = new THREE.BoxHelper(new THREE.Mesh(), 0x42c5f5);
+  dBoxHelper.visible = false;
+  dScene.add(dBoxHelper);
+
+  function selectDesignerChild(cloneChild) {
+    dSelectedChild = cloneChild;
+    if (cloneChild) {
+      dBoxHelper.setFromObject(cloneChild);
+      dBoxHelper.visible = true;
+      dFieldsDiv.style.display = '';
+      dFieldsTitle.textContent = cloneChild.name || 'Part';
+      syncDFields();
+    } else {
+      dBoxHelper.visible = false;
+      dFieldsDiv.style.display = 'none';
+    }
+    // Highlight in list
+    for (const row of dChildList.children) {
+      const isActive = row._cloneChild === cloneChild;
+      row.style.background = isActive ? 'rgba(66,197,245,0.15)' : 'transparent';
+      row.style.borderColor = isActive ? 'rgba(66,197,245,0.4)' : 'rgba(255,255,255,0.06)';
+    }
+  }
+
+  function openDesigner() {
+    const obj = editor.selectedObject;
+    if (!obj) {
+      if (dClone) { dScene.remove(dClone); dClone = null; }
+      dChildList.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(245,234,215,0.4)">Select a part first</div>';
+      dFieldsDiv.style.display = 'none';
+      dBoxHelper.visible = false;
+      dSelectedChild = null;
+      return;
+    }
+
+    // Clean up previous clone
+    if (dClone) { dScene.remove(dClone); dClone = null; }
+    dChildMap.clear();
+    dSelectedChild = null;
+    dBoxHelper.visible = false;
+    dFieldsDiv.style.display = 'none';
+
+    dSourceObj = obj;
+    dClone = obj.clone(true);
+    dClone.position.set(0, 0, 0);
+    dClone.rotation.set(0, 0, 0);
+    dScene.add(dClone);
+
+    // Build clone->source mapping
+    const srcChildren = [];
+    obj.traverse((child) => { if (child !== obj && child.isMesh) srcChildren.push(child); });
+    const cloneChildren = [];
+    dClone.traverse((child) => { if (child !== dClone && child.isMesh) cloneChildren.push(child); });
+    for (let i = 0; i < cloneChildren.length && i < srcChildren.length; i++) {
+      dChildMap.set(cloneChildren[i], srcChildren[i]);
+      if (!cloneChildren[i].name) cloneChildren[i].name = srcChildren[i].name || `Part ${i + 1}`;
+    }
+
+    // Fit camera
+    const box = new THREE.Box3().setFromObject(dClone);
+    box.getCenter(dOrbitCenter);
+    const size = box.getSize(new THREE.Vector3());
+    dOrbitDist = Math.max(size.x, size.y, size.z) * 2;
+
+    // Build child list
+    dChildList.innerHTML = '';
+    if (cloneChildren.length <= 1) {
+      const msg = document.createElement('div');
+      Object.assign(msg.style, { padding: '8px', fontSize: '11px', color: 'rgba(245,234,215,0.4)', textAlign: 'center' });
+      msg.textContent = 'Single mesh — no sub-parts to edit';
+      dChildList.appendChild(msg);
+    } else {
+      for (const cc of cloneChildren) {
+        const row = document.createElement('div');
+        row._cloneChild = cc;
+        Object.assign(row.style, {
+          padding: '5px 8px', fontSize: '11px', cursor: 'pointer',
+          borderRadius: '5px', marginBottom: '2px',
+          border: '1px solid rgba(255,255,255,0.06)', transition: 'background 0.1s',
+        });
+        row.textContent = cc.name || 'Part';
+        row.addEventListener('click', () => selectDesignerChild(cc));
+        dChildList.appendChild(row);
+      }
+    }
+
+    renderDesigner();
+  }
+
+  // Designer orbit controls
+  let dDragging = false;
+  designerCanvas.addEventListener('mousedown', (e) => {
+    dDragging = true;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dDragging) return;
+    dOrbitYaw -= e.movementX * 0.008;
+    dOrbitPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1,
+      dOrbitPitch - e.movementY * 0.008));
+  });
+  window.addEventListener('mouseup', () => { dDragging = false; });
+  designerCanvas.addEventListener('wheel', (e) => {
+    dOrbitDist = Math.max(1, dOrbitDist + e.deltaY * 0.01);
+    e.preventDefault();
+  }, { passive: false });
+
+  // Click to select child in viewport
+  const dRaycaster = new THREE.Raycaster();
+  const dPointer = new THREE.Vector2();
+  designerCanvas.addEventListener('click', (e) => {
+    if (!dClone) return;
+    const rect = designerCanvas.getBoundingClientRect();
+    dPointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    dPointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    dRaycaster.setFromCamera(dPointer, dCamera);
+    const cloneChildren = [];
+    dClone.traverse((c) => { if (c !== dClone && c.isMesh) cloneChildren.push(c); });
+    const hits = dRaycaster.intersectObjects(cloneChildren, false);
+    if (hits.length) {
+      selectDesignerChild(hits[0].object);
+    } else {
+      selectDesignerChild(null);
+    }
+  });
+
+  // Block events from propagating
+  designerCanvas.addEventListener('keydown', (e) => e.stopPropagation());
+  designerDiv.addEventListener('keydown', (e) => e.stopPropagation());
+  designerDiv.addEventListener('keyup', (e) => e.stopPropagation());
+
+  function renderDesigner() {
+    if (activeTab !== 'designer' || !dClone) return;
+    const rect = designerCanvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    if (w < 1 || h < 1) return;
+    dRenderer.setSize(w, h, false);
+    dCamera.aspect = w / h;
+    dCamera.updateProjectionMatrix();
+    dCamera.position.set(
+      dOrbitCenter.x + Math.sin(dOrbitYaw) * Math.cos(dOrbitPitch) * dOrbitDist,
+      dOrbitCenter.y + Math.sin(dOrbitPitch) * dOrbitDist,
+      dOrbitCenter.z + Math.cos(dOrbitYaw) * Math.cos(dOrbitPitch) * dOrbitDist,
+    );
+    dCamera.lookAt(dOrbitCenter);
+    if (dSelectedChild && dBoxHelper.visible) dBoxHelper.setFromObject(dSelectedChild);
+    dRenderer.render(dScene, dCamera);
+  }
+
   document.body.appendChild(panel);
 
   // ── Gizmo + helper ──
@@ -604,6 +920,7 @@ function initShipEditor() {
     selectedObject: null,
     isDragging: false,
     editorActive: false,
+    renderDesigner,
   };
 
   // ── Selection logic ──
@@ -635,10 +952,57 @@ function initShipEditor() {
     editor.selectedObject = object;
     helper.setFromObject(object);
     helper.visible = true;
-    settingsDiv.style.display = '';
+    settingsDiv.style.display = activeTab === 'parts' ? '' : 'none';
     settingsTitle.textContent = object.name || 'Object';
     syncFields();
     highlightButtons(object);
+    if (activeTab === 'designer') openDesigner();
+  }
+
+  function focusCameraOn(object) {
+    const box = new THREE.Box3().setFromObject(object);
+    const worldCenter = new THREE.Vector3();
+    box.getCenter(worldCenter);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const dist = maxDim * 3.5;
+
+    // Try multiple camera angles, pick the one with clearest view
+    const candidates = [
+      new THREE.Vector3(1, 0.5, 1),
+      new THREE.Vector3(-1, 0.5, 1),
+      new THREE.Vector3(1, 0.5, -1),
+      new THREE.Vector3(-1, 0.5, -1),
+      new THREE.Vector3(0, 0.8, 1),
+      new THREE.Vector3(0, 0.8, -1),
+      new THREE.Vector3(1, 0.8, 0),
+      new THREE.Vector3(-1, 0.8, 0),
+    ];
+
+    const occlusionRay = new THREE.Raycaster();
+    const others = editableObjects.filter(o => o !== object);
+    let bestPos = null;
+    let bestScore = -Infinity;
+
+    for (const dir of candidates) {
+      const camPos = worldCenter.clone().addScaledVector(dir.normalize(), dist);
+      const toTarget = worldCenter.clone().sub(camPos).normalize();
+      occlusionRay.set(camPos, toTarget);
+      const hits = occlusionRay.intersectObjects(others, true);
+      // Score: prefer no occluders; tie-break by elevation (higher = nicer view)
+      const occluded = hits.some(h => h.distance < camPos.distanceTo(worldCenter) - 0.5);
+      const score = (occluded ? 0 : 100) + dir.y * 10;
+      if (score > bestScore) {
+        bestScore = score;
+        bestPos = camPos;
+      }
+    }
+
+    camera.position.copy(bestPos);
+    const toObj = worldCenter.clone().sub(camera.position).normalize();
+    freeCam.yaw = Math.atan2(toObj.x, toObj.z);
+    freeCam.pitch = Math.asin(Math.max(-1, Math.min(1, toObj.y)));
+    camera.lookAt(worldCenter);
   }
 
   function lockObject(object) {
@@ -668,6 +1032,7 @@ function initShipEditor() {
     helper.visible = false;
     settingsDiv.style.display = 'none';
     highlightButtons(null);
+    if (activeTab === 'designer') openDesigner();
   }
 
   // ── Coordinate input handlers ──
@@ -737,6 +1102,7 @@ function initShipEditor() {
     if (e.target !== renderer.domElement) return;
     const hit = raycastEditable(e);
     if (hit) {
+      focusCameraOn(hit);
       lockObject(hit);
     } else if (locked) {
       // Double-click empty space = unlock
@@ -798,7 +1164,7 @@ function initShipEditor() {
       Math.cos(freeCam.yaw) * Math.cos(freeCam.pitch)
     );
     const right = new THREE.Vector3(
-      Math.cos(freeCam.yaw), 0, -Math.sin(freeCam.yaw)
+      -Math.cos(freeCam.yaw), 0, Math.sin(freeCam.yaw)
     );
     const up = new THREE.Vector3(0, 1, 0);
 

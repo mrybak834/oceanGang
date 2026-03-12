@@ -1280,25 +1280,32 @@ export function createBoatController() {
         blending: THREE.AdditiveBlending,
       });
       splashParticles = new THREE.Points(geo, mat);
+      splashParticles.renderOrder = 10;
+      splashParticles.frustumCulled = false;
       splashVelocities = new Float32Array(SPLASH_COUNT * 3);
       scene.add(splashParticles);
     }
 
+    // Boat's forward direction for carrying splash momentum
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(boat.quaternion);
+    const carryX = fwd.x * speed * 0.6;
+    const carryZ = fwd.z * speed * 0.6;
+
     const pos = splashParticles.geometry.attributes.position.array;
-    const bx = boat.position.x, by = boat.position.y, bz = boat.position.z;
+    const bx = boat.position.x, bz = boat.position.z;
 
     for (let i = 0; i < SPLASH_COUNT; i++) {
       const i3 = i * 3;
       const angle = Math.random() * Math.PI * 2;
       const radius = Math.random() * 8;
       pos[i3] = bx + Math.cos(angle) * radius;
-      pos[i3 + 1] = by;
+      pos[i3 + 1] = 0; // water surface
       pos[i3 + 2] = bz + Math.sin(angle) * radius;
 
       const spd = 5 + Math.random() * 18;
-      splashVelocities[i3] = Math.cos(angle) * spd * 0.7;
+      splashVelocities[i3] = Math.cos(angle) * spd * 0.7 + carryX;
       splashVelocities[i3 + 1] = 8 + Math.random() * 20;
-      splashVelocities[i3 + 2] = Math.sin(angle) * spd * 0.7;
+      splashVelocities[i3 + 2] = Math.sin(angle) * spd * 0.7 + carryZ;
     }
 
     splashParticles.geometry.attributes.position.needsUpdate = true;

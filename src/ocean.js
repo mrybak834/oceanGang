@@ -48,10 +48,10 @@ export function createOcean(scene, renderer) {
     const size = 4;
     const data = new Uint8Array(size * size * 4);
     for (let i = 0; i < size * size; i++) {
-      // Warm sky-ish neutral tone so PBR materials aren't black
-      data[i * 4 + 0] = 180; // R
-      data[i * 4 + 1] = 200; // G
-      data[i * 4 + 2] = 220; // B
+      // Bright sky tone to approximate the HDR sky PMREM generates on desktop
+      data[i * 4 + 0] = 230; // R
+      data[i * 4 + 1] = 240; // G
+      data[i * 4 + 2] = 250; // B
       data[i * 4 + 3] = 255; // A
     }
     const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);

@@ -1,6 +1,8 @@
 // ─── Strudel Music Panel — scenes, toggle, drag, resize, fade ───
 import '@strudel/repl';
-import { getSuperdoughAudioController } from 'superdough';
+import { getSuperdoughAudioController, setSuperdoughAudioController } from 'superdough';
+import { getAudioContext, setAudioContext } from 'superdough/audioContext.mjs';
+import { SuperdoughAudioController } from 'superdough/superdoughoutput.mjs';
 import { SOUND_OPTIONS, applySoundSwap, isSwappableSynth } from './patchParser.js';
 
 export const MUSIC_SCENE_SYNC_EVENT = 'oceangang:music-scene-sync';
@@ -9,6 +11,73 @@ const SCENE_OVERRIDES_URL = '/music-scene-overrides.json';
 const SCENE_SAVE_URL = '/__save_music_scene';
 
 export const SCENES = {
+  'Treasure Map': `// music box melody — flowing adventure with gentle evolving sections
+setcps(0.50)
+
+// Main melody: the original phrase, then gentle variations that stay in E minor
+// Each variation keeps the same rhythm and contour, just explores new notes
+let musicBox = note("<[e5 g5 b5 a5 g5 f#5 e5 d5 e5 b4 d5 e5 a4 b4 g4 ~] [e5 g5 b5 a5 g5 f#5 e5 d5 e5 b4 d5 e5 a4 b4 g4 ~] [e5 a5 b5 g5 a5 f#5 e5 d5 e5 b4 d5 g5 a4 b4 e5 ~] [e5 g5 b5 d6 b5 a5 g5 e5 d5 b4 d5 e5 a4 b4 g4 ~]>")
+  .s("sine").slow(4)
+  .lpf(3000)
+  .attack(0.003).decay(0.5).sustain(0.05).release(1.2)
+  .delay(0.4).delaytime(0.375).delayfeedback(0.4)
+  .room(0.85).gain(0.11)
+
+// Counter-melody: weaves around the main melody, same key throughout
+let musicBox2 = note("<[~ b5 ~ e6 d6 ~ b5 a5 ~ g5 a5 b5 ~ e5 ~ d5] [~ b5 ~ e6 d6 ~ b5 a5 ~ g5 a5 b5 ~ e5 ~ d5] [~ a5 ~ d6 b5 ~ a5 g5 ~ e5 g5 a5 ~ d5 ~ b4] [~ d6 ~ e6 d6 ~ b5 g5 ~ e5 g5 b5 ~ a5 ~ g5]>")
+  .s("sine").slow(4)
+  .lpf(2500)
+  .attack(0.003).decay(0.4).sustain(0.05).release(1)
+  .delay(0.45).delaytime(0.25).delayfeedback(0.35)
+  .room(0.85).gain(0.07)
+
+// Bass: stays rooted in E minor, gentle movement between E, B, A, D
+let bassPluck = note("e3 ~ ~ b2 ~ ~ a2 ~ ~ ~ d3 ~ ~ ~ g2 ~")
+  .s("triangle").slow(4)
+  .lpf(600)
+  .attack(0.005).decay(0.4).sustain(0.2).release(0.8)
+  .gain(0.15).room(0.6)
+
+// Pads: original progression, very slow cycling for smooth drift
+let mysteryPad = note("<[e3,g3,b3] [c3,e3,a3] [d3,f#3,a3] [b2,e3,g3]>")
+  .s("gm_pad_halo").slow(3)
+  .lpf(perlin.range(300, 800).slow(16))
+  .gain(0.12).room(0.8).roomsize(0.75)
+
+// Sparkle: sparse deeper blips, warm and round
+let sparkle = note("~ ~ b5 ~ ~ e6 ~ ~ g5 ~ ~ ~ d6 ~ a5 ~")
+  .s("gm_fx_crystal").slow(8)
+  .lpf(2500)
+  .gain(0.05)
+  .delay(0.5).delaytime(0.5).delayfeedback(0.55)
+  .room(0.92)
+
+// Sea breeze atmosphere
+let seaBreeze = sound("pink")
+  .gain(perlin.slow(24).range(0.01, 0.04))
+  .lpf(sine.slow(14).range(120, 600))
+  .hpf(60)
+  .room(0.88).roomsize(0.8)
+
+// Deep sub drone on E — very slow, barely perceptible, adds warmth
+let drone = note("e2")
+  .s("sine").slow(16)
+  .attack(4).release(6)
+  .lpf(perlin.range(60, 150).slow(20))
+  .gain(perlin.slow(16).range(0.03, 0.07))
+  .room(0.95).roomsize(0.9)
+
+// Gentle high pad — slowly evolving color, appears and fades over long cycles
+let shimmer = note("<[b4,e5] [a4,d5] [g4,b4] [e4,a4]>")
+  .s("sine").slow(8)
+  .lpf(sine.slow(20).range(800, 2000))
+  .attack(1).decay(2).sustain(0.3).release(3)
+  .gain(perlin.slow(24).range(0.02, 0.06))
+  .delay(0.4).delaytime(0.5).delayfeedback(0.45)
+  .room(0.9).roomsize(0.85)
+
+stack(musicBox, musicBox2, bassPluck, mysteryPad, sparkle, seaBreeze, drone, shimmer)`,
+
   'Calm Shores': `// gentle surf, drifting ocarina, warm pads
 setcps(0.25)
 
@@ -288,73 +357,6 @@ let distantBell = note("~ ~ ~ ~ ~ eb6 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~")
   .room(0.98)
 
 stack(foghorn, ghostPad, fog, distantBell)`,
-
-  'Treasure Map': `// music box melody — flowing adventure with gentle evolving sections
-setcps(0.50)
-
-// Main melody: the original phrase, then gentle variations that stay in E minor
-// Each variation keeps the same rhythm and contour, just explores new notes
-let musicBox = note("<[e5 g5 b5 a5 g5 f#5 e5 d5 e5 b4 d5 e5 a4 b4 g4 ~] [e5 g5 b5 a5 g5 f#5 e5 d5 e5 b4 d5 e5 a4 b4 g4 ~] [e5 a5 b5 g5 a5 f#5 e5 d5 e5 b4 d5 g5 a4 b4 e5 ~] [e5 g5 b5 d6 b5 a5 g5 e5 d5 b4 d5 e5 a4 b4 g4 ~]>")
-  .s("sine").slow(4)
-  .lpf(3000)
-  .attack(0.003).decay(0.5).sustain(0.05).release(1.2)
-  .delay(0.4).delaytime(0.375).delayfeedback(0.4)
-  .room(0.85).gain(0.11)
-
-// Counter-melody: weaves around the main melody, same key throughout
-let musicBox2 = note("<[~ b5 ~ e6 d6 ~ b5 a5 ~ g5 a5 b5 ~ e5 ~ d5] [~ b5 ~ e6 d6 ~ b5 a5 ~ g5 a5 b5 ~ e5 ~ d5] [~ a5 ~ d6 b5 ~ a5 g5 ~ e5 g5 a5 ~ d5 ~ b4] [~ d6 ~ e6 d6 ~ b5 g5 ~ e5 g5 b5 ~ a5 ~ g5]>")
-  .s("sine").slow(4)
-  .lpf(2500)
-  .attack(0.003).decay(0.4).sustain(0.05).release(1)
-  .delay(0.45).delaytime(0.25).delayfeedback(0.35)
-  .room(0.85).gain(0.07)
-
-// Bass: stays rooted in E minor, gentle movement between E, B, A, D
-let bassPluck = note("e3 ~ ~ b2 ~ ~ a2 ~ ~ ~ d3 ~ ~ ~ g2 ~")
-  .s("triangle").slow(4)
-  .lpf(600)
-  .attack(0.005).decay(0.4).sustain(0.2).release(0.8)
-  .gain(0.15).room(0.6)
-
-// Pads: original progression, very slow cycling for smooth drift
-let mysteryPad = note("<[e3,g3,b3] [c3,e3,a3] [d3,f#3,a3] [b2,e3,g3]>")
-  .s("gm_pad_halo").slow(3)
-  .lpf(perlin.range(300, 800).slow(16))
-  .gain(0.12).room(0.8).roomsize(0.75)
-
-// Sparkle: sparse deeper blips, warm and round
-let sparkle = note("~ ~ b5 ~ ~ e6 ~ ~ g5 ~ ~ ~ d6 ~ a5 ~")
-  .s("gm_fx_crystal").slow(8)
-  .lpf(2500)
-  .gain(0.05)
-  .delay(0.5).delaytime(0.5).delayfeedback(0.55)
-  .room(0.92)
-
-// Sea breeze atmosphere
-let seaBreeze = sound("pink")
-  .gain(perlin.slow(24).range(0.01, 0.04))
-  .lpf(sine.slow(14).range(120, 600))
-  .hpf(60)
-  .room(0.88).roomsize(0.8)
-
-// Deep sub drone on E — very slow, barely perceptible, adds warmth
-let drone = note("e2")
-  .s("sine").slow(16)
-  .attack(4).release(6)
-  .lpf(perlin.range(60, 150).slow(20))
-  .gain(perlin.slow(16).range(0.03, 0.07))
-  .room(0.95).roomsize(0.9)
-
-// Gentle high pad — slowly evolving color, appears and fades over long cycles
-let shimmer = note("<[b4,e5] [a4,d5] [g4,b4] [e4,a4]>")
-  .s("sine").slow(8)
-  .lpf(sine.slow(20).range(800, 2000))
-  .attack(1).decay(2).sustain(0.3).release(3)
-  .gain(perlin.slow(24).range(0.02, 0.06))
-  .delay(0.4).delaytime(0.5).delayfeedback(0.45)
-  .room(0.9).roomsize(0.85)
-
-stack(musicBox, musicBox2, bassPluck, mysteryPad, sparkle, seaBreeze, drone, shimmer)`,
 
   // ─── Community patches (credited, open-source) ───
 
@@ -781,6 +783,21 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
       } catch (err) {
         console.warn('Failed to stop embedded Strudel REPL:', err);
       }
+    }
+    // Kill all lingering sounds by closing the AudioContext and creating a fresh one.
+    // This is the only reliable way to kill oscillators mid-release and reverb/delay tails.
+    try {
+      const oldCtx = getAudioContext();
+      if (oldCtx && oldCtx.state !== 'closed') {
+        await oldCtx.close();
+      }
+      const newCtx = new AudioContext();
+      setAudioContext(newCtx);
+      const newController = new SuperdoughAudioController(newCtx);
+      setSuperdoughAudioController(newController);
+      syncMusicVolume();
+    } catch (err) {
+      console.warn('Failed to reset audio context:', err);
     }
   }
 
