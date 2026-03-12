@@ -82,6 +82,7 @@ function musicSceneSavePlugin() {
 }
 
 export default defineConfig({
+  base: '/oceanGang/',
   plugins: [perfReportPlugin(), musicSceneSavePlugin()],
   optimizeDeps: {
     force: true,
