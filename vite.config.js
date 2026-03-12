@@ -84,7 +84,10 @@ function musicSceneSavePlugin() {
 export default defineConfig({
   base: '/oceanGang/',
   plugins: [perfReportPlugin(), musicSceneSavePlugin()],
+  resolve: {
+    dedupe: ['superdough', '@strudel/webaudio', '@strudel/repl'],
+  },
   optimizeDeps: {
-    force: true,
+    exclude: ['superdough', '@strudel/webaudio', '@strudel/repl'],
   },
 });

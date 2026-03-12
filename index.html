@@ -54,6 +54,25 @@
       <div id="music-resize-handle" class="music-resize-handle"></div>
     </div>
 
+    <script>
+      // Capture every AudioContext created on the page so we can suspend them all
+      // on music stop. Must run before any ES module (Strudel) creates a context.
+      (() => {
+        const Original = window.AudioContext || window.webkitAudioContext;
+        const contexts = new Set();
+        class Patched extends Original {
+          constructor(...args) {
+            super(...args);
+            contexts.add(this);
+          }
+        }
+        Patched.prototype = Original.prototype;
+        Object.setPrototypeOf(Patched, Original);
+        window.__allAudioContexts = contexts;
+        window.AudioContext = Patched;
+        if (window.webkitAudioContext) window.webkitAudioContext = Patched;
+      })();
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

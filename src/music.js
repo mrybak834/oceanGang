@@ -1,8 +1,6 @@
 // ─── Strudel Music Panel — scenes, toggle, drag, resize, fade ───
 import '@strudel/repl';
-import { getSuperdoughAudioController, setSuperdoughAudioController } from 'superdough';
-import { getAudioContext, setAudioContext } from 'superdough/audioContext.mjs';
-import { SuperdoughAudioController } from 'superdough/superdoughoutput.mjs';
+import { getSuperdoughAudioController } from 'superdough';
 import { SOUND_OPTIONS, applySoundSwap, isSwappableSynth } from './patchParser.js';
 
 export const MUSIC_SCENE_SYNC_EVENT = 'oceangang:music-scene-sync';
@@ -718,6 +716,7 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
           await originalStop();
           suppressEditorSync = false;
         }
+        await resumeAllAudioContexts();
         const result = await originalEvaluate(autostart);
         syncEditorState(sceneName, code, autostart);
         return result;
@@ -784,21 +783,29 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
         console.warn('Failed to stop embedded Strudel REPL:', err);
       }
     }
-    // Kill all lingering sounds by closing the AudioContext and creating a fresh one.
-    // This is the only reliable way to kill oscillators mid-release and reverb/delay tails.
-    try {
-      const oldCtx = getAudioContext();
-      if (oldCtx && oldCtx.state !== 'closed') {
-        await oldCtx.close();
-      }
-      const newCtx = new AudioContext();
-      setAudioContext(newCtx);
-      const newController = new SuperdoughAudioController(newCtx);
-      setSuperdoughAudioController(newController);
-      syncMusicVolume();
-    } catch (err) {
-      console.warn('Failed to reset audio context:', err);
-    }
+    // Suspend EVERY AudioContext on the page — this freezes all audio processing
+    // including reverb tails, delay feedback, and oscillator releases.
+    // We use the globally captured set from index.html to ensure we reach the
+    // exact context Strudel is using, even if Vite created duplicate module instances.
+    const contexts = window.__allAudioContexts || new Set();
+    await Promise.allSettled(
+      [...contexts].map(async (ctx) => {
+        if (ctx.state === 'running') {
+          await ctx.suspend();
+        }
+      })
+    );
+  }
+
+  async function resumeAllAudioContexts() {
+    const contexts = window.__allAudioContexts || new Set();
+    await Promise.allSettled(
+      [...contexts].map(async (ctx) => {
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+      })
+    );
   }
 
   // ── Populate scene dropdown from SCENES ──
@@ -973,6 +980,7 @@ export function initMusicPanel(shipAudio, instrumentRegistry) {
 
     try {
       const repl = await ensureEmbeddedRepl();
+      await resumeAllAudioContexts();
       await repl.editor.evaluate();
     } catch (err) {
       console.error('Strudel error:', err);
