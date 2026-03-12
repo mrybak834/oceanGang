@@ -93,14 +93,17 @@ function init() {
   // Wind boost effect (3D streaks in world space)
   windEffect = createWindEffect(scene);
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0x6688aa, 0.8);
+  // Lighting — boost on mobile where PBR envmaps may fail
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (isMobile) renderer.toneMappingExposure = 1.0;
+
+  const ambientLight = new THREE.AmbientLight(0x6688aa, isMobile ? 1.4 : 0.8);
   scene.add(ambientLight);
 
-  const hemiLight = new THREE.HemisphereLight(0xb1e1ff, 0x886633, 0.6);
+  const hemiLight = new THREE.HemisphereLight(0xb1e1ff, 0x886633, isMobile ? 1.2 : 0.6);
   scene.add(hemiLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xfff4e5, 2.0);
+  const directionalLight = new THREE.DirectionalLight(0xfff4e5, isMobile ? 3.0 : 2.0);
   directionalLight.position.set(1, 3, 1);
   scene.add(directionalLight);
 

@@ -43,6 +43,22 @@ export function createOcean(scene, renderer) {
   const sceneEnv = new THREE.Scene();
   let renderTarget;
 
+  // Generate a neutral fallback environment for devices where PMREM fails (iPhones etc.)
+  function makeFallbackEnv() {
+    const size = 4;
+    const data = new Uint8Array(size * size * 4);
+    for (let i = 0; i < size * size; i++) {
+      // Warm sky-ish neutral tone so PBR materials aren't black
+      data[i * 4 + 0] = 180; // R
+      data[i * 4 + 1] = 200; // G
+      data[i * 4 + 2] = 220; // B
+      data[i * 4 + 3] = 255; // A
+    }
+    const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    tex.needsUpdate = true;
+    return pmremGenerator.fromEquirectangular(tex).texture;
+  }
+
   function updateSun() {
     const phi = THREE.MathUtils.degToRad(90 - parameters.elevation);
     const theta = THREE.MathUtils.degToRad(parameters.azimuth);
@@ -58,6 +74,35 @@ export function createOcean(scene, renderer) {
     scene.add(sky);
 
     scene.environment = renderTarget.texture;
+
+    // Verify the PMREM worked — on some mobile GPUs fromScene() returns a black texture.
+    // If so, fall back to a neutral environment so MeshStandardMaterial isn't black.
+    try {
+      const gl = renderer.getContext();
+      const fb = gl.createFramebuffer();
+      const webglTex = renderer.properties.get(renderTarget.texture).__webglTexture;
+      if (webglTex) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, webglTex, 0);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) {
+          const pixel = new Uint8Array(4);
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+          if (pixel[0] === 0 && pixel[1] === 0 && pixel[2] === 0) {
+            console.warn('PMREM envmap is black — using fallback environment');
+            scene.environment = makeFallbackEnv();
+          }
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+      gl.deleteFramebuffer(fb);
+    } catch (_) {
+      // readPixels not available — use fallback to be safe on mobile
+      const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      if (isMobile) {
+        console.warn('Cannot verify envmap — using fallback environment on mobile');
+        scene.environment = makeFallbackEnv();
+      }
+    }
   }
 
   updateSun();
