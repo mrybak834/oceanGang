@@ -15,6 +15,7 @@ import { createTitleScreen } from './titleScreen.js';
 import { createInstrumentRegistry } from './instruments.js';
 import { createCompass } from './compass.js';
 import { createCreatures } from './creatures.js';
+import { createTouchControls } from './touchControls.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
@@ -93,8 +94,11 @@ function init() {
   windEffect = createWindEffect(scene);
 
   // Lighting
-  const ambientLight = new THREE.AmbientLight(0x6688aa, 0.6);
+  const ambientLight = new THREE.AmbientLight(0x6688aa, 0.8);
   scene.add(ambientLight);
+
+  const hemiLight = new THREE.HemisphereLight(0xb1e1ff, 0x886633, 0.6);
+  scene.add(hemiLight);
 
   const directionalLight = new THREE.DirectionalLight(0xfff4e5, 2.0);
   directionalLight.position.set(1, 3, 1);
@@ -107,6 +111,7 @@ function init() {
   // Boat
   boat = createBoat(scene);
   boatController = createBoatController();
+  createTouchControls(boatController.keys);
   shipEditor = initShipEditor();
 
   // Islands
