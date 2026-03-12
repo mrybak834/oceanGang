@@ -75,33 +75,11 @@ export function createOcean(scene, renderer) {
 
     scene.environment = renderTarget.texture;
 
-    // Verify the PMREM worked — on some mobile GPUs fromScene() returns a black texture.
-    // If so, fall back to a neutral environment so MeshStandardMaterial isn't black.
-    try {
-      const gl = renderer.getContext();
-      const fb = gl.createFramebuffer();
-      const webglTex = renderer.properties.get(renderTarget.texture).__webglTexture;
-      if (webglTex) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, webglTex, 0);
-        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) {
-          const pixel = new Uint8Array(4);
-          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-          if (pixel[0] === 0 && pixel[1] === 0 && pixel[2] === 0) {
-            console.warn('PMREM envmap is black — using fallback environment');
-            scene.environment = makeFallbackEnv();
-          }
-        }
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      }
-      gl.deleteFramebuffer(fb);
-    } catch (_) {
-      // readPixels not available — use fallback to be safe on mobile
-      const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-      if (isMobile) {
-        console.warn('Cannot verify envmap — using fallback environment on mobile');
-        scene.environment = makeFallbackEnv();
-      }
+    // On mobile GPUs, PMREMGenerator.fromScene() often returns a black texture.
+    // Use the fallback environment on mobile devices to avoid black objects.
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (isMobile) {
+      scene.environment = makeFallbackEnv();
     }
   }
 
