@@ -1506,3 +1506,87 @@ canvas {
   margin-top: 4px;
   min-height: 14px;
 }
+
+/* ─── Menu Bar (top-right unified bar) ─── */
+
+.menu-bar {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 500;
+  display: flex;
+  background: rgba(8, 10, 24, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.menu-bar-items {
+  display: flex;
+  overflow: hidden;
+  transition: width 0.2s ease, opacity 0.2s ease;
+}
+
+.menu-bar.menu-bar-collapsed .menu-bar-items {
+  width: 0 !important;
+  opacity: 0;
+}
+
+.menu-bar-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  background: transparent;
+  color: rgba(255,255,255,0.65);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.menu-bar-btn:last-child {
+  border-right: none;
+}
+
+.menu-bar-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.menu-bar-collapse {
+  width: 28px;
+  height: 36px;
+  border: none;
+  border-left: 1px solid rgba(255,255,255,0.08);
+  background: transparent;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.menu-bar-collapse:hover {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.7);
+}
+
+.menu-bar-collapse svg {
+  transition: transform 0.2s ease;
+}
+
+.menu-bar.menu-bar-collapsed .menu-bar-collapse {
+  border-left: none;
+}
+
+.menu-bar.menu-bar-collapsed .menu-bar-collapse svg {
+  transform: rotate(180deg);
+}

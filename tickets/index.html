@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>oceanGang — Roadmap</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="github-markdown.css" />
+</head>
+<body>
+  <header>
+    <h1>oceanGang roadmap</h1>
+    <div class="controls">
+      <button id="view-epics" class="view-btn active">Epics</button>
+      <button id="view-tickets" class="view-btn">Tickets</button>
+    </div>
+    <span class="subtitle">Columns = dependency order. Same column = parallel. "needs #X" = must finish first.</span>
+  </header>
+  <div id="board-wrapper">
+    <div id="board"></div>
+    <svg id="arrows"></svg>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

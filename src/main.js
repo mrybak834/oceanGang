@@ -19,7 +19,7 @@ import { createTouchControls } from './touchControls.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
-let shipAudio, ocean, tradingSystem, perfTracker, instrumentRegistry, compass, creatures;
+let shipAudio, ocean, tradingSystem, perfTracker, instrumentRegistry, compass, creatures, skySettings;
 let compassCamera, compassRenderer;
 let islandGroups = [], islandPositions = [];
 let wasJumping = false;
@@ -132,14 +132,16 @@ function init() {
   creatures = createCreatures(scene);
   creatures.init(boat.position);
 
-  // Zoom (scroll wheel)
+  // Zoom (scroll wheel, ctrl = slow)
   window.addEventListener('wheel', (e) => {
-    zoomLevel += e.deltaY * 0.001;
+    const speed = e.ctrlKey ? 0.0002 : 0.001;
+    zoomLevel += e.deltaY * speed;
     zoomLevel = Math.max(zoomMin, Math.min(zoomMax, zoomLevel));
   });
 
-  // Mouse drag to orbit camera
+  // Mouse drag to orbit camera (skip when interacting with designer panel)
   window.addEventListener('mousedown', (e) => {
+    if (e.target.closest?.('[data-designer-panel]')) return;
     if (e.button === 0 || e.button === 2) isMouseDragging = true;
   });
   window.addEventListener('mouseup', () => {
@@ -184,15 +186,18 @@ function init() {
   // Trading system (island barriers + trading menu)
   tradingSystem = createTradingSystem(scene, islandsResult.islandData, crateManager, instrumentRegistry);
 
-  // Sky/ocean settings popup (G key)
-  initSkySettings(ocean, renderer);
+  // Sky/ocean settings popup
+  skySettings = initSkySettings(ocean, renderer);
 
-  // Performance tracker (P key)
+  // Performance tracker
   perfTracker = createPerfTracker(renderer);
 
   // Compass + speed gauge
   compass = createCompass();
   initCompassCameraInset();
+
+  // Collapsible menu bar (top-right)
+  initMenuBar();
 
   // Title screen
   createTitleScreen();
@@ -453,7 +458,7 @@ function initShipEditor() {
   });
 
   const title = document.createElement('div');
-  title.textContent = 'Ship Editor';
+  title.textContent = 'Editor';
   Object.assign(title.style, {
     fontSize: '18px',
     letterSpacing: '0.06em',
@@ -463,7 +468,7 @@ function initShipEditor() {
     alignItems: 'center',
   });
   const titleHint = document.createElement('span');
-  titleHint.textContent = 'WASD fly · E close';
+  titleHint.textContent = 'WASD fly · Q/E down/up';
   Object.assign(titleHint.style, { fontSize: '11px', color: 'rgba(245,234,215,0.4)', fontWeight: 'normal' });
   title.appendChild(titleHint);
   panel.appendChild(title);
@@ -472,8 +477,8 @@ function initShipEditor() {
   const grid = document.createElement('div');
   Object.assign(grid.style, {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))',
-    gap: '8px',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '6px',
     marginBottom: '12px',
   });
   panel.appendChild(grid);
@@ -499,8 +504,8 @@ function initShipEditor() {
     const img = document.createElement('img');
     img.src = thumbnails[index];
     Object.assign(img.style, {
-      width: '64px',
-      height: '64px',
+      width: '100%',
+      aspectRatio: '1',
       objectFit: 'contain',
       borderRadius: '4px',
       pointerEvents: 'none',
@@ -516,228 +521,296 @@ function initShipEditor() {
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap',
-      maxWidth: '80px',
+      width: '100%',
     });
     btn.appendChild(label);
 
-    btn.addEventListener('click', () => selectObject(obj));
+    btn.addEventListener('click', () => {
+      if (editor.selectedObject === obj) { deselect(); return; }
+      selectObject(obj);
+    });
     btn.addEventListener('dblclick', () => { focusCameraOn(obj); lockObject(obj); });
     grid.appendChild(btn);
     buttons.push({ btn, obj });
   });
 
-  // ── Settings section (hidden until selection) ──
-  const settingsDiv = document.createElement('div');
-  settingsDiv.style.display = 'none';
-  panel.appendChild(settingsDiv);
-
-  const settingsTitle = document.createElement('div');
-  Object.assign(settingsTitle.style, {
-    fontSize: '14px',
+  // Designer toggle button
+  const designerToggleBtn = document.createElement('button');
+  designerToggleBtn.type = 'button';
+  designerToggleBtn.textContent = 'Open Designer';
+  Object.assign(designerToggleBtn.style, {
+    width: '100%', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: '600',
+    border: '1px solid rgba(245,196,66,0.4)', background: 'rgba(245,196,66,0.1)',
+    color: '#f5c542', cursor: 'pointer', transition: 'background 0.15s',
     marginBottom: '8px',
-    color: 'rgba(245,234,215,0.8)',
-    borderTop: '1px solid rgba(255,255,255,0.08)',
-    paddingTop: '10px',
   });
-  settingsDiv.appendChild(settingsTitle);
-
-  const coords = document.createElement('div');
-  Object.assign(coords.style, {
-    display: 'grid',
-    gridTemplateColumns: '20px 1fr',
-    gap: '6px 10px',
-    alignItems: 'center',
+  designerToggleBtn.addEventListener('mouseenter', () => {
+    designerToggleBtn.style.background = 'rgba(245,196,66,0.25)';
   });
-  settingsDiv.appendChild(coords);
-
-  const fields = {};
-  ['x', 'y', 'z'].forEach((axis) => {
-    const label = document.createElement('label');
-    label.textContent = axis.toUpperCase();
-    Object.assign(label.style, { fontSize: '13px' });
-    coords.appendChild(label);
-
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.step = '0.1';
-    Object.assign(input.style, {
-      width: '100%',
-      padding: '6px 8px',
-      borderRadius: '6px',
-      border: '1px solid rgba(255,255,255,0.16)',
-      background: 'rgba(255,255,255,0.06)',
-      color: '#f5ead7',
-      fontSize: '13px',
-    });
-    fields[axis] = input;
-    coords.appendChild(input);
+  designerToggleBtn.addEventListener('mouseleave', () => {
+    designerToggleBtn.style.background = 'rgba(245,196,66,0.1)';
   });
-
-  // ── Tabs: Parts / Designer ──
-  const tabBar = document.createElement('div');
-  Object.assign(tabBar.style, {
-    display: 'flex', gap: '0', marginBottom: '10px',
-    borderBottom: '1px solid rgba(255,255,255,0.12)',
-  });
-  const tabBtnStyle = (active) => ({
-    flex: '1', padding: '7px 0', textAlign: 'center', cursor: 'pointer',
-    fontSize: '12px', letterSpacing: '0.05em',
-    background: 'none', border: 'none', color: active ? '#f5c542' : 'rgba(245,234,215,0.5)',
-    borderBottom: active ? '2px solid #f5c542' : '2px solid transparent',
-  });
-  const partsTab = document.createElement('button');
-  partsTab.textContent = 'Parts';
-  Object.assign(partsTab.style, tabBtnStyle(true));
-  const designerTab = document.createElement('button');
-  designerTab.textContent = 'Designer';
-  Object.assign(designerTab.style, tabBtnStyle(false));
-  tabBar.appendChild(partsTab);
-  tabBar.appendChild(designerTab);
-  panel.insertBefore(tabBar, grid);
-
-  const designerDiv = document.createElement('div');
-  designerDiv.style.display = 'none';
-  panel.appendChild(designerDiv);
-
-  let activeTab = 'parts';
-  function switchTab(tab) {
-    activeTab = tab;
-    Object.assign(partsTab.style, tabBtnStyle(tab === 'parts'));
-    Object.assign(designerTab.style, tabBtnStyle(tab === 'designer'));
-    grid.style.display = tab === 'parts' ? '' : 'none';
-    settingsDiv.style.display = tab === 'parts' && editor.selectedObject ? '' : 'none';
-    designerDiv.style.display = tab === 'designer' ? '' : 'none';
-    if (tab === 'designer') openDesigner();
-  }
-  partsTab.addEventListener('click', () => switchTab('parts'));
-  designerTab.addEventListener('click', () => switchTab('designer'));
-
-  // ── Designer: isolated 3D preview + child part editing ──
-  const DESIGNER_STORAGE_KEY = 'oceanGang_designer_v1';
-
-  function loadDesignerState() {
-    try {
-      const raw = localStorage.getItem(DESIGNER_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  }
-
-  function saveDesignerState(state) {
-    try { localStorage.setItem(DESIGNER_STORAGE_KEY, JSON.stringify(state)); } catch {}
-  }
-
-  // Apply persisted child positions on startup
-  function applyPersistedPositions() {
-    const state = loadDesignerState();
-    for (const obj of editableObjects) {
-      const objState = state[obj.name];
-      if (!objState) continue;
-      obj.traverse((child) => {
-        if (child === obj) return;
-        const key = child.name || child.uuid;
-        if (objState[key]) {
-          const p = objState[key];
-          child.position.set(p.x, p.y, p.z);
-        }
-      });
+  designerToggleBtn.addEventListener('click', () => {
+    if (designerPanel.style.display !== 'none') {
+      closeDesigner();
+      designerToggleBtn.textContent = 'Open Designer';
+    } else {
+      if (editor.selectedObject) {
+        openDesigner();
+        designerToggleBtn.textContent = 'Close Designer';
+      }
     }
+  });
+  panel.appendChild(designerToggleBtn);
+
+  // Editor save button — persists object positions on the ship
+  const editorSaveBtn = document.createElement('button');
+  editorSaveBtn.type = 'button';
+  editorSaveBtn.textContent = 'Save';
+  Object.assign(editorSaveBtn.style, {
+    width: '100%', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: '600',
+    border: '1px solid rgba(245,196,66,0.4)', background: 'rgba(245,196,66,0.1)',
+    color: '#f5c542', cursor: 'pointer', transition: 'background 0.15s',
+  });
+  editorSaveBtn.addEventListener('mouseenter', () => {
+    editorSaveBtn.style.background = 'rgba(245,196,66,0.25)';
+  });
+  editorSaveBtn.addEventListener('mouseleave', () => {
+    editorSaveBtn.style.background = 'rgba(245,196,66,0.1)';
+  });
+
+  function buildEditorState() {
+    const state = {};
+    for (const obj of editableObjects) {
+      state[obj.name] = {
+        x: +obj.position.x.toFixed(4),
+        y: +obj.position.y.toFixed(4),
+        z: +obj.position.z.toFixed(4),
+      };
+    }
+    return state;
   }
-  applyPersistedPositions();
+
+  async function saveEditorState() {
+    const state = buildEditorState();
+    try { localStorage.setItem('oceanGang_editor_v1', JSON.stringify(state)); } catch {}
+    try {
+      const res = await fetch('/__save_editor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state),
+      });
+      return (await res.json()).ok;
+    } catch { return true; }
+  }
+
+  editorSaveBtn.addEventListener('click', async () => {
+    editorSaveBtn.textContent = 'Saving...';
+    const ok = await saveEditorState();
+    if (ok) {
+      editorSaveBtn.textContent = 'Saved!';
+      editorSaveBtn.style.background = 'rgba(34,197,94,0.2)';
+      editorSaveBtn.style.borderColor = 'rgba(34,197,94,0.6)';
+      editorSaveBtn.style.color = '#4ade80';
+    } else {
+      editorSaveBtn.textContent = 'Error';
+      editorSaveBtn.style.background = 'rgba(220,38,38,0.2)';
+      editorSaveBtn.style.borderColor = 'rgba(220,38,38,0.6)';
+      editorSaveBtn.style.color = '#f87171';
+    }
+    setTimeout(() => {
+      editorSaveBtn.textContent = 'Save';
+      editorSaveBtn.style.background = 'rgba(245,196,66,0.1)';
+      editorSaveBtn.style.borderColor = 'rgba(245,196,66,0.4)';
+      editorSaveBtn.style.color = '#f5c542';
+    }, 1500);
+  });
+  panel.appendChild(editorSaveBtn);
+
+  document.body.appendChild(panel);
+
+  // ── Designer side panel (appears to the right when a part is selected) ──
+
+  const designerPanel = document.createElement('div');
+  designerPanel.setAttribute('data-designer-panel', '');
+  Object.assign(designerPanel.style, {
+    position: 'fixed',
+    top: '20px',
+    left: '354px',
+    right: '20px',
+    bottom: '20px',
+    padding: '14px',
+    borderRadius: '12px',
+    background: 'rgba(10, 18, 24, 0.88)',
+    color: '#f5ead7',
+    fontFamily: 'Georgia, serif',
+    zIndex: '250',
+    boxShadow: '0 12px 30px rgba(0,0,0,0.35)',
+    backdropFilter: 'blur(10px)',
+    pointerEvents: 'auto',
+    display: 'none',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  });
+
+  const designerHeader = document.createElement('div');
+  Object.assign(designerHeader.style, {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: '10px', flexShrink: '0',
+  });
+  designerPanel.appendChild(designerHeader);
+
+  const designerTitle = document.createElement('div');
+  Object.assign(designerTitle.style, {
+    fontSize: '14px', color: '#f5c542', fontWeight: 'bold',
+  });
+  designerHeader.appendChild(designerTitle);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.textContent = 'Save';
+  Object.assign(saveBtn.style, {
+    padding: '5px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '600',
+    border: '1px solid rgba(245,196,66,0.4)', background: 'rgba(245,196,66,0.1)',
+    color: '#f5c542', cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
+  });
+  saveBtn.addEventListener('mouseenter', () => {
+    saveBtn.style.background = 'rgba(245,196,66,0.25)';
+    saveBtn.style.borderColor = 'rgba(245,196,66,0.7)';
+  });
+  saveBtn.addEventListener('mouseleave', () => {
+    saveBtn.style.background = 'rgba(245,196,66,0.1)';
+    saveBtn.style.borderColor = 'rgba(245,196,66,0.4)';
+  });
+  saveBtn.addEventListener('click', async () => {
+    if (!dSourceObj) return;
+    saveBtn.textContent = 'Saving...';
+    const ok = await saveDesignerState();
+    if (ok) {
+      saveBtn.textContent = 'Saved!';
+      saveBtn.style.background = 'rgba(34,197,94,0.2)';
+      saveBtn.style.borderColor = 'rgba(34,197,94,0.6)';
+      saveBtn.style.color = '#4ade80';
+    } else {
+      saveBtn.textContent = 'Error';
+      saveBtn.style.background = 'rgba(220,38,38,0.2)';
+      saveBtn.style.borderColor = 'rgba(220,38,38,0.6)';
+      saveBtn.style.color = '#f87171';
+    }
+    setTimeout(() => {
+      saveBtn.textContent = 'Save';
+      saveBtn.style.background = 'rgba(245,196,66,0.1)';
+      saveBtn.style.borderColor = 'rgba(245,196,66,0.4)';
+      saveBtn.style.color = '#f5c542';
+    }, 1500);
+  });
+  designerHeader.appendChild(saveBtn);
 
   // Designer viewport
   const designerCanvas = document.createElement('canvas');
   Object.assign(designerCanvas.style, {
-    width: '100%', height: '200px', borderRadius: '8px',
-    background: 'rgba(0,0,0,0.4)', marginBottom: '8px', cursor: 'grab',
+    width: '100%', flex: '1 1 0', minHeight: '0', borderRadius: '8px',
+    background: '#3a4f5f', marginBottom: '8px', cursor: 'grab',
   });
-  designerDiv.appendChild(designerCanvas);
+  designerPanel.appendChild(designerCanvas);
 
-  const dRenderer = new THREE.WebGLRenderer({ canvas: designerCanvas, alpha: true, antialias: true });
+  const dRenderer = new THREE.WebGLRenderer({ canvas: designerCanvas, antialias: true });
   dRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-  dRenderer.toneMappingExposure = 0.9;
+  dRenderer.toneMappingExposure = 1.4;
+  dRenderer.setClearColor(0x3a4f5f, 1);
   const dScene = new THREE.Scene();
-  dScene.add(new THREE.AmbientLight(0x8899bb, 1.0));
-  const dDirLight = new THREE.DirectionalLight(0xfff4e5, 2.5);
-  dDirLight.position.set(2, 4, 3);
+  dScene.background = new THREE.Color(0x3a4f5f);
+  dScene.add(new THREE.AmbientLight(0xffffff, 2.0));
+  const dDirLight = new THREE.DirectionalLight(0xffffff, 4.0);
+  dDirLight.position.set(3, 6, 4);
   dScene.add(dDirLight);
-  const dHemiLight = new THREE.HemisphereLight(0xb1e1ff, 0x886633, 0.6);
+  const dDirLight2 = new THREE.DirectionalLight(0xaabbcc, 2.0);
+  dDirLight2.position.set(-3, 3, -4);
+  dScene.add(dDirLight2);
+  const dDirLight3 = new THREE.DirectionalLight(0xccbbaa, 1.5);
+  dDirLight3.position.set(0, -2, 3);
+  dScene.add(dDirLight3);
+  const dHemiLight = new THREE.HemisphereLight(0xddeeff, 0x998866, 1.5);
   dScene.add(dHemiLight);
   const dCamera = new THREE.PerspectiveCamera(40, 1, 0.01, 200);
-  let dClone = null;
   let dSourceObj = null;
-  let dChildMap = new Map(); // clone child -> source child
+  let dChildren = []; // direct mesh children of the source object
   let dSelectedChild = null;
+  let dSavedPos = new THREE.Vector3();
+  let dSavedRot = new THREE.Euler();
   let dOrbitYaw = 0.4, dOrbitPitch = 0.3, dOrbitDist = 10;
   let dOrbitCenter = new THREE.Vector3();
 
-  // Designer child list
+  // Designer child list (compact grid)
   const dChildList = document.createElement('div');
   Object.assign(dChildList.style, {
-    maxHeight: '180px', overflowY: 'auto', marginBottom: '8px',
+    flexShrink: '0', maxHeight: '25%', overflowY: 'auto', marginBottom: '4px',
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '3px',
   });
-  designerDiv.appendChild(dChildList);
+  designerPanel.appendChild(dChildList);
 
-  // Designer child position fields
-  const dFieldsDiv = document.createElement('div');
-  dFieldsDiv.style.display = 'none';
-  designerDiv.appendChild(dFieldsDiv);
+  // Designer TransformControls for moving parts
+  const dTransform = new TransformControls(dCamera, designerCanvas);
+  dTransform.setMode('translate');
+  dTransform.setSpace('local');
+  dTransform.setSize(0.8);
+  dTransform.enabled = false;
+  const dTransformHelper = dTransform.getHelper();
+  dTransformHelper.visible = false;
+  dScene.add(dTransformHelper);
+  let dTransformDragging = false;
 
-  const dFieldsTitle = document.createElement('div');
-  Object.assign(dFieldsTitle.style, { fontSize: '12px', marginBottom: '6px', color: 'rgba(245,234,215,0.7)' });
-  dFieldsDiv.appendChild(dFieldsTitle);
-
-  const dCoords = document.createElement('div');
-  Object.assign(dCoords.style, {
-    display: 'grid', gridTemplateColumns: '20px 1fr', gap: '4px 8px', alignItems: 'center',
-  });
-  dFieldsDiv.appendChild(dCoords);
-
-  const dFields = {};
-  ['x', 'y', 'z'].forEach((axis) => {
-    const label = document.createElement('label');
-    label.textContent = axis.toUpperCase();
-    Object.assign(label.style, { fontSize: '12px' });
-    dCoords.appendChild(label);
-    const input = document.createElement('input');
-    input.type = 'number'; input.step = '0.05';
-    Object.assign(input.style, {
-      width: '100%', padding: '4px 6px', borderRadius: '5px',
-      border: '1px solid rgba(255,255,255,0.16)',
-      background: 'rgba(255,255,255,0.06)', color: '#f5ead7', fontSize: '12px',
-    });
-    input.addEventListener('input', () => {
-      if (!dSelectedChild) return;
-      const val = Number.parseFloat(input.value);
-      if (!Number.isFinite(val)) return;
-      // Update clone child
-      dSelectedChild.position[axis] = val;
-      // Update source child
-      const srcChild = dChildMap.get(dSelectedChild);
-      if (srcChild) srcChild.position[axis] = val;
-      persistDesignerChild();
-    });
-    dFields[axis] = input;
-    dCoords.appendChild(input);
+  dTransform.addEventListener('dragging-changed', (event) => {
+    dTransformDragging = event.value;
   });
 
-  function persistDesignerChild() {
-    if (!dSourceObj || !dSelectedChild) return;
-    const srcChild = dChildMap.get(dSelectedChild);
-    if (!srcChild) return;
-    const state = loadDesignerState();
-    if (!state[dSourceObj.name]) state[dSourceObj.name] = {};
-    const key = srcChild.name || srcChild.uuid;
-    state[dSourceObj.name][key] = {
-      x: srcChild.position.x, y: srcChild.position.y, z: srcChild.position.z,
-    };
-    saveDesignerState(state);
+  dTransform.addEventListener('change', () => {
+    if (!dSelectedChild) return;
+    dBoxHelper.setFromObject(dSelectedChild);
+  });
+
+  dTransform.addEventListener('mouseUp', () => {
+    // Position already synced to source in 'change' handler — save via Save button
+  });
+
+  // Build full designer state from all editables for saving to disk
+  // Always use _idx keys for stable matching across reloads
+  function buildDesignerState() {
+    const state = {};
+    for (const obj of editableObjects) {
+      const children = {};
+      let hasChanges = false;
+      let idx = 0;
+      obj.traverse((child) => {
+        if (child === obj) return;
+        const key = `_${idx}`;
+        idx++;
+        if (!child.isMesh) return;
+        children[key] = {
+          x: +child.position.x.toFixed(4),
+          y: +child.position.y.toFixed(4),
+          z: +child.position.z.toFixed(4),
+        };
+        hasChanges = true;
+      });
+      if (hasChanges) state[obj.name] = children;
+    }
+    return state;
   }
 
-  function syncDFields() {
-    if (!dSelectedChild) return;
-    dFields.x.value = dSelectedChild.position.x.toFixed(3);
-    dFields.y.value = dSelectedChild.position.y.toFixed(3);
-    dFields.z.value = dSelectedChild.position.z.toFixed(3);
+  async function saveDesignerState() {
+    const state = buildDesignerState();
+    // Always save to localStorage (works everywhere)
+    try { localStorage.setItem('oceanGang_designer_v1', JSON.stringify(state)); } catch {}
+    // Also try Vite dev endpoint to write to public/designerState.json
+    try {
+      const res = await fetch('/__save_designer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state),
+      });
+      return (await res.json()).ok;
+    } catch { return true; /* localStorage save succeeded */ }
   }
 
   // Highlight selected child in preview
@@ -745,99 +818,104 @@ function initShipEditor() {
   dBoxHelper.visible = false;
   dScene.add(dBoxHelper);
 
-  function selectDesignerChild(cloneChild) {
-    dSelectedChild = cloneChild;
-    if (cloneChild) {
-      dBoxHelper.setFromObject(cloneChild);
+  function selectDesignerChild(child) {
+    dSelectedChild = child;
+    if (child) {
       dBoxHelper.visible = true;
-      dFieldsDiv.style.display = '';
-      dFieldsTitle.textContent = cloneChild.name || 'Part';
-      syncDFields();
+      dTransform.attach(child);
+      dTransformHelper.visible = true;
+      dTransform.enabled = true;
     } else {
       dBoxHelper.visible = false;
-      dFieldsDiv.style.display = 'none';
+      dTransform.detach();
+      dTransformHelper.visible = false;
+      dTransform.enabled = false;
     }
-    // Highlight in list
-    for (const row of dChildList.children) {
-      const isActive = row._cloneChild === cloneChild;
-      row.style.background = isActive ? 'rgba(66,197,245,0.15)' : 'transparent';
-      row.style.borderColor = isActive ? 'rgba(66,197,245,0.4)' : 'rgba(255,255,255,0.06)';
+    for (const btn of dChildList.children) {
+      const isActive = btn._child === child;
+      btn.style.borderColor = isActive ? 'rgba(66,197,245,0.6)' : 'rgba(255,255,255,0.08)';
+      btn.style.background = isActive ? 'rgba(66,197,245,0.15)' : 'rgba(255,255,255,0.04)';
     }
   }
 
   function openDesigner() {
     const obj = editor.selectedObject;
     if (!obj) {
-      if (dClone) { dScene.remove(dClone); dClone = null; }
-      dChildList.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(245,234,215,0.4)">Select a part first</div>';
-      dFieldsDiv.style.display = 'none';
-      dBoxHelper.visible = false;
-      dSelectedChild = null;
+      closeDesigner();
       return;
     }
 
-    // Clean up previous clone
-    if (dClone) { dScene.remove(dClone); dClone = null; }
-    dChildMap.clear();
-    dSelectedChild = null;
-    dBoxHelper.visible = false;
-    dFieldsDiv.style.display = 'none';
+    selectDesignerChild(null);
 
     dSourceObj = obj;
-    dClone = obj.clone(true);
-    dClone.position.set(0, 0, 0);
-    dClone.rotation.set(0, 0, 0);
-    dScene.add(dClone);
 
-    // Build clone->source mapping
-    const srcChildren = [];
-    obj.traverse((child) => { if (child !== obj && child.isMesh) srcChildren.push(child); });
-    const cloneChildren = [];
-    dClone.traverse((child) => { if (child !== dClone && child.isMesh) cloneChildren.push(child); });
-    for (let i = 0; i < cloneChildren.length && i < srcChildren.length; i++) {
-      dChildMap.set(cloneChildren[i], srcChildren[i]);
-      if (!cloneChildren[i].name) cloneChildren[i].name = srcChildren[i].name || `Part ${i + 1}`;
-    }
+    // Collect mesh children
+    dChildren = [];
+    obj.traverse((child) => {
+      if (child !== obj && child.isMesh) {
+        if (!child.name) child.name = `Part ${dChildren.length + 1}`;
+        dChildren.push(child);
+      }
+    });
 
-    // Fit camera
-    const box = new THREE.Box3().setFromObject(dClone);
-    box.getCenter(dOrbitCenter);
+    // Fit camera to object bounds (in local space)
+    const box = new THREE.Box3().setFromObject(obj);
+    const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
+    // Convert center to object-local space for orbiting
+    dOrbitCenter.set(0, 0, 0);
     dOrbitDist = Math.max(size.x, size.y, size.z) * 2;
 
-    // Build child list
+    designerTitle.textContent = obj.name || 'Object';
+
+    // Build compact child button grid
     dChildList.innerHTML = '';
-    if (cloneChildren.length <= 1) {
+    if (dChildren.length <= 1) {
       const msg = document.createElement('div');
-      Object.assign(msg.style, { padding: '8px', fontSize: '11px', color: 'rgba(245,234,215,0.4)', textAlign: 'center' });
-      msg.textContent = 'Single mesh — no sub-parts to edit';
+      Object.assign(msg.style, { padding: '6px', fontSize: '10px', color: 'rgba(245,234,215,0.4)', textAlign: 'center', gridColumn: '1 / -1' });
+      msg.textContent = 'Single mesh';
       dChildList.appendChild(msg);
     } else {
-      for (const cc of cloneChildren) {
-        const row = document.createElement('div');
-        row._cloneChild = cc;
-        Object.assign(row.style, {
-          padding: '5px 8px', fontSize: '11px', cursor: 'pointer',
-          borderRadius: '5px', marginBottom: '2px',
-          border: '1px solid rgba(255,255,255,0.06)', transition: 'background 0.1s',
+      for (const child of dChildren) {
+        const btn = document.createElement('button');
+        btn._child = child;
+        btn.type = 'button';
+        Object.assign(btn.style, {
+          padding: '4px 6px', fontSize: '9px', cursor: 'pointer',
+          borderRadius: '5px', textAlign: 'center',
+          border: '1px solid rgba(255,255,255,0.08)', transition: 'background 0.1s, border-color 0.1s',
+          background: 'rgba(255,255,255,0.04)', color: '#f5ead7',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         });
-        row.textContent = cc.name || 'Part';
-        row.addEventListener('click', () => selectDesignerChild(cc));
-        dChildList.appendChild(row);
+        btn.textContent = child.name || 'Part';
+        btn.title = child.name || 'Part';
+        btn.addEventListener('click', () => selectDesignerChild(child));
+        dChildList.appendChild(btn);
       }
     }
 
+    designerPanel.style.display = 'flex';
     renderDesigner();
   }
 
-  // Designer orbit controls
+  function closeDesigner() {
+    selectDesignerChild(null);
+    dSourceObj = null;
+    dChildren = [];
+    dChildList.innerHTML = '';
+    designerPanel.style.display = 'none';
+    designerToggleBtn.textContent = 'Open Designer';
+  }
+
+  // Designer orbit controls (skip when transform gizmo is active)
   let dDragging = false;
   designerCanvas.addEventListener('mousedown', (e) => {
+    if (dTransformDragging) return;
     dDragging = true;
     e.preventDefault();
   });
   window.addEventListener('mousemove', (e) => {
-    if (!dDragging) return;
+    if (!dDragging || dTransformDragging) return;
     dOrbitYaw -= e.movementX * 0.008;
     dOrbitPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1,
       dOrbitPitch - e.movementY * 0.008));
@@ -852,14 +930,27 @@ function initShipEditor() {
   const dRaycaster = new THREE.Raycaster();
   const dPointer = new THREE.Vector2();
   designerCanvas.addEventListener('click', (e) => {
-    if (!dClone) return;
+    if (!dSourceObj || dTransformDragging) return;
     const rect = designerCanvas.getBoundingClientRect();
     dPointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     dPointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    // Temporarily move object to origin for raycasting (matches designer camera)
+    const parent = dSourceObj.parent;
+    const savedPos = dSourceObj.position.clone();
+    const savedRot = dSourceObj.rotation.clone();
+    dSourceObj.position.set(0, 0, 0);
+    dSourceObj.rotation.set(0, 0, 0);
+    dSourceObj.updateMatrixWorld(true);
+
     dRaycaster.setFromCamera(dPointer, dCamera);
-    const cloneChildren = [];
-    dClone.traverse((c) => { if (c !== dClone && c.isMesh) cloneChildren.push(c); });
-    const hits = dRaycaster.intersectObjects(cloneChildren, false);
+    const hits = dRaycaster.intersectObjects(dChildren, false);
+
+    // Restore
+    dSourceObj.position.copy(savedPos);
+    dSourceObj.rotation.copy(savedRot);
+    dSourceObj.updateMatrixWorld(true);
+
     if (hits.length) {
       selectDesignerChild(hits[0].object);
     } else {
@@ -867,13 +958,43 @@ function initShipEditor() {
     }
   });
 
-  // Block events from propagating
+  // Designer keyboard controls (WASD orbit, QE up/down)
+  const dKeys = {};
+  designerPanel.tabIndex = 0; // make focusable
+  designerPanel.style.outline = 'none';
+  designerPanel.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    dKeys[e.key.toLowerCase()] = true;
+  });
+  designerPanel.addEventListener('keyup', (e) => {
+    e.stopPropagation();
+    dKeys[e.key.toLowerCase()] = false;
+  });
   designerCanvas.addEventListener('keydown', (e) => e.stopPropagation());
-  designerDiv.addEventListener('keydown', (e) => e.stopPropagation());
-  designerDiv.addEventListener('keyup', (e) => e.stopPropagation());
+  // Focus designer panel when interacting
+  designerCanvas.addEventListener('mousedown', () => designerPanel.focus());
+  designerPanel.addEventListener('mousedown', () => designerPanel.focus());
+
+  function updateDesignerKeys() {
+    const panSpeed = dOrbitDist * 0.02;
+    // Camera-relative directions
+    const forward = new THREE.Vector3(
+      -Math.sin(dOrbitYaw) * Math.cos(dOrbitPitch),
+      -Math.sin(dOrbitPitch),
+      -Math.cos(dOrbitYaw) * Math.cos(dOrbitPitch),
+    ).normalize();
+    const right = new THREE.Vector3(-Math.cos(dOrbitYaw), 0, Math.sin(dOrbitYaw)).normalize();
+    if (dKeys['w']) dOrbitCenter.addScaledVector(forward, panSpeed);
+    if (dKeys['s']) dOrbitCenter.addScaledVector(forward, -panSpeed);
+    if (dKeys['a']) dOrbitCenter.addScaledVector(right, -panSpeed);
+    if (dKeys['d']) dOrbitCenter.addScaledVector(right, panSpeed);
+    if (dKeys['e']) dOrbitCenter.y += panSpeed;
+    if (dKeys['q']) dOrbitCenter.y -= panSpeed;
+  }
 
   function renderDesigner() {
-    if (activeTab !== 'designer' || !dClone) return;
+    if (designerPanel.style.display === 'none' || !dSourceObj) return;
+    updateDesignerKeys();
     const rect = designerCanvas.getBoundingClientRect();
     const w = rect.width, h = rect.height;
     if (w < 1 || h < 1) return;
@@ -886,11 +1007,27 @@ function initShipEditor() {
       dOrbitCenter.z + Math.cos(dOrbitYaw) * Math.cos(dOrbitPitch) * dOrbitDist,
     );
     dCamera.lookAt(dOrbitCenter);
+    // Temporarily reparent the real object into designer scene at origin
+    const parent = dSourceObj.parent;
+    dSavedPos.copy(dSourceObj.position);
+    dSavedRot.copy(dSourceObj.rotation);
+    dSourceObj.position.set(0, 0, 0);
+    dSourceObj.rotation.set(0, 0, 0);
+    dScene.add(dSourceObj);
+    dSourceObj.updateMatrixWorld(true);
+
     if (dSelectedChild && dBoxHelper.visible) dBoxHelper.setFromObject(dSelectedChild);
+
     dRenderer.render(dScene, dCamera);
+
+    // Put it back
+    dSourceObj.position.copy(dSavedPos);
+    dSourceObj.rotation.copy(dSavedRot);
+    if (parent) parent.add(dSourceObj);
+    dSourceObj.updateMatrixWorld(true);
   }
 
-  document.body.appendChild(panel);
+  document.body.appendChild(designerPanel);
 
   // ── Gizmo + helper ──
   const transform = new TransformControls(camera, renderer.domElement);
@@ -924,13 +1061,6 @@ function initShipEditor() {
   };
 
   // ── Selection logic ──
-  function syncFields() {
-    if (!editor.selectedObject) return;
-    fields.x.value = editor.selectedObject.position.x.toFixed(2);
-    fields.y.value = editor.selectedObject.position.y.toFixed(2);
-    fields.z.value = editor.selectedObject.position.z.toFixed(2);
-  }
-
   let locked = false; // true = gizmo attached, object can be dragged
 
   function highlightButtons(object) {
@@ -952,11 +1082,9 @@ function initShipEditor() {
     editor.selectedObject = object;
     helper.setFromObject(object);
     helper.visible = true;
-    settingsDiv.style.display = activeTab === 'parts' ? '' : 'none';
-    settingsTitle.textContent = object.name || 'Object';
-    syncFields();
     highlightButtons(object);
-    if (activeTab === 'designer') openDesigner();
+    // Update designer if already open
+    if (designerPanel.style.display !== 'none') openDesigner();
   }
 
   function focusCameraOn(object) {
@@ -1013,10 +1141,9 @@ function initShipEditor() {
     transform.enabled = true;
     helper.setFromObject(object);
     helper.visible = true;
-    settingsDiv.style.display = '';
-    settingsTitle.textContent = (object.name || 'Object') + ' — drag to move';
-    syncFields();
     highlightButtons(object);
+    // Update designer if already open
+    if (designerPanel.style.display !== 'none') openDesigner();
   }
 
   function unlock() {
@@ -1030,25 +1157,12 @@ function initShipEditor() {
     unlock();
     editor.selectedObject = null;
     helper.visible = false;
-    settingsDiv.style.display = 'none';
     highlightButtons(null);
-    if (activeTab === 'designer') openDesigner();
+    closeDesigner();
   }
-
-  // ── Coordinate input handlers ──
-  Object.entries(fields).forEach(([axis, input]) => {
-    input.addEventListener('input', () => {
-      if (!editor.selectedObject) return;
-      const value = Number.parseFloat(input.value);
-      if (!Number.isFinite(value)) return;
-      editor.selectedObject.position[axis] = value;
-      helper.update();
-    });
-  });
 
   transform.addEventListener('change', () => {
     helper.update();
-    syncFields();
   });
 
   transform.addEventListener('dragging-changed', (event) => {
@@ -1079,16 +1193,6 @@ function initShipEditor() {
     // Skip if this was a gizmo drag
     if (editor.isDragging) return;
     const hit = raycastEditable(e);
-    if (locked) {
-      if (!hit) {
-        // Click empty = unlock but keep selection
-        unlock();
-        if (editor.selectedObject) {
-          settingsTitle.textContent = editor.selectedObject.name || 'Object';
-        }
-      }
-      return;
-    }
     if (hit) {
       selectObject(hit);
     } else {
@@ -1105,11 +1209,7 @@ function initShipEditor() {
       focusCameraOn(hit);
       lockObject(hit);
     } else if (locked) {
-      // Double-click empty space = unlock
       unlock();
-      if (editor.selectedObject) {
-        settingsTitle.textContent = editor.selectedObject.name || 'Object';
-      }
     }
   });
 
@@ -1130,7 +1230,7 @@ function initShipEditor() {
     if (editor.selectedObject) {
       helper.visible = true;
     }
-    showCameraToast('Editor Mode — WASD to fly');
+    showCameraToast('Editor Mode — WASD fly, Q/E down/up');
   }
 
   function hideEditor() {
@@ -1143,11 +1243,14 @@ function initShipEditor() {
     showCameraToast('Editor Off');
   }
 
+  editor.toggleEditor = function () {
+    if (editorActive) hideEditor();
+    else showEditor();
+  };
+
   window.addEventListener('keydown', (e) => {
-    if (e.target.closest('#music-panel') || e.target.closest('.sky-settings') || e.target.tagName === 'INPUT') return;
-    if (e.code === 'KeyE' && !e.repeat) {
-      if (editorActive) hideEditor();
-      else showEditor();
+    if (e.key === 'Escape' && editorActive && editor.selectedObject) {
+      deselect();
     }
   });
 
@@ -1173,8 +1276,8 @@ function initShipEditor() {
     if (keys['s'] || keys['arrowdown']) camera.position.addScaledVector(forward, -moveSpeed * dt);
     if (keys['a'] || keys['arrowleft']) camera.position.addScaledVector(right, -moveSpeed * dt);
     if (keys['d'] || keys['arrowright']) camera.position.addScaledVector(right, moveSpeed * dt);
-    if (keys[' ']) camera.position.addScaledVector(up, moveSpeed * dt);
-    if (keys['control']) camera.position.addScaledVector(up, -moveSpeed * dt);
+    if (keys['e']) camera.position.addScaledVector(up, moveSpeed * dt);
+    if (keys['q']) camera.position.addScaledVector(up, -moveSpeed * dt);
 
     // Apply look direction
     const lookTarget = camera.position.clone().add(forward);
@@ -1194,4 +1297,46 @@ function initShipEditor() {
   panel.addEventListener('keyup', (e) => { e.stopPropagation(); });
 
   return editor;
+}
+
+// ── Menu Bar (top-right unified bar) ──
+function initMenuBar() {
+  const bar = document.createElement('div');
+  bar.className = 'menu-bar';
+
+  const itemsWrap = document.createElement('div');
+  itemsWrap.className = 'menu-bar-items';
+
+  const items = [
+    { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>', title: 'Sky & Ocean', action: () => skySettings.toggle() },
+    { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>', title: 'Ship Editor', action: () => shipEditor?.toggleEditor() },
+    { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>', title: 'Performance', action: () => perfTracker.toggle() },
+  ];
+
+  for (const item of items) {
+    const btn = document.createElement('button');
+    btn.className = 'menu-bar-btn';
+    btn.innerHTML = item.icon;
+    btn.title = item.title;
+    btn.addEventListener('click', () => item.action());
+    itemsWrap.appendChild(btn);
+  }
+
+  bar.appendChild(itemsWrap);
+
+  // Collapse chevron
+  const collapseBtn = document.createElement('button');
+  collapseBtn.className = 'menu-bar-collapse';
+  collapseBtn.title = 'Collapse menu';
+  collapseBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+  collapseBtn.addEventListener('click', () => {
+    bar.classList.toggle('menu-bar-collapsed');
+  });
+  bar.appendChild(collapseBtn);
+
+  document.body.appendChild(bar);
+
+  // Block game input
+  bar.addEventListener('keydown', (e) => e.stopPropagation());
+  bar.addEventListener('keyup', (e) => e.stopPropagation());
 }

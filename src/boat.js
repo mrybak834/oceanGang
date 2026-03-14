@@ -1032,6 +1032,73 @@ export function createBoat(scene) {
   boat.userData.jib = jib;
   boat.userData.editableObjects = editableObjects;
 
+  // Apply editor state (object positions on the ship)
+  function applyEditorState(state) {
+    if (!state || typeof state !== 'object') return;
+    for (const obj of editableObjects) {
+      const pos = state[obj.name];
+      if (pos) obj.position.set(pos.x, pos.y, pos.z);
+    }
+  }
+
+  fetch('./editorState.json')
+    .then(r => r.ok ? r.json() : null)
+    .then(state => {
+      if (state && Object.keys(state).length) {
+        applyEditorState(state);
+      } else {
+        try {
+          const raw = localStorage.getItem('oceanGang_editor_v1');
+          if (raw) applyEditorState(JSON.parse(raw));
+        } catch {}
+      }
+    })
+    .catch(() => {
+      try {
+        const raw = localStorage.getItem('oceanGang_editor_v1');
+        if (raw) applyEditorState(JSON.parse(raw));
+      } catch {}
+    });
+
+  // Apply designer state (child part positions within objects)
+  function applyDesignerState(state) {
+    if (!state || typeof state !== 'object') return;
+    for (const obj of editableObjects) {
+      const objState = state[obj.name];
+      if (!objState) continue;
+      let idx = 0;
+      obj.traverse((child) => {
+        if (child === obj) return;
+        const key = `_${idx}`;
+        idx++;
+        if (objState[key]) {
+          const p = objState[key];
+          child.position.set(p.x, p.y, p.z);
+        }
+      });
+    }
+  }
+
+  fetch('./designerState.json')
+    .then(r => r.ok ? r.json() : null)
+    .then(state => {
+      if (state && Object.keys(state).length) {
+        applyDesignerState(state);
+      } else {
+        // Fallback to localStorage
+        try {
+          const raw = localStorage.getItem('oceanGang_designer_v1');
+          if (raw) applyDesignerState(JSON.parse(raw));
+        } catch {}
+      }
+    })
+    .catch(() => {
+      try {
+        const raw = localStorage.getItem('oceanGang_designer_v1');
+        if (raw) applyDesignerState(JSON.parse(raw));
+      } catch {}
+    });
+
   scene.add(boat);
   return boat;
 }

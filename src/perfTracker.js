@@ -41,7 +41,7 @@ export function createPerfTracker(renderer) {
   panel.id = 'perf-panel';
   panel.className = 'perf-panel perf-hidden';
   panel.innerHTML = `
-    <div class="perf-title">Performance <span class="perf-hint">P to close</span></div>
+    <div class="perf-title">Performance</div>
     <div class="perf-grid" id="perf-grid">
       <span class="perf-label">FPS</span><span class="perf-val" id="perf-fps">--</span>
       <span class="perf-label">Frame</span><span class="perf-val" id="perf-ft">--</span>
@@ -88,13 +88,11 @@ export function createPerfTracker(renderer) {
   panel.addEventListener('keyup', e => e.stopPropagation());
   panel.addEventListener('mousedown', e => e.stopPropagation());
 
-  window.addEventListener('keydown', (e) => {
-    if (e.target.closest('#perf-panel') || e.target.closest('#music-panel')) return;
-    if (e.code === 'KeyP' && !e.repeat) {
-      visible = !visible;
-      panel.classList.toggle('perf-hidden', !visible);
-    }
-  });
+  function toggle() {
+    visible = !visible;
+    panel.classList.toggle('perf-hidden', !visible);
+    return visible;
+  }
 
   // Duration selector
   panel.querySelectorAll('.perf-dur-btn').forEach(btn => {
@@ -775,7 +773,7 @@ export function createPerfTracker(renderer) {
     return issues;
   }
 
-  return { begin, end, markStart, markEnd, setContext, logEvent };
+  return { begin, end, markStart, markEnd, setContext, logEvent, toggle };
 }
 
 function formatNum(n) {

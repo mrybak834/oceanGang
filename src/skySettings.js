@@ -19,7 +19,7 @@ export function initSkySettings(ocean, renderer) {
   const panel = document.createElement('div');
   panel.id = 'sky-settings';
   panel.className = 'sky-settings hidden';
-  panel.innerHTML = `<div class="sky-settings-title">Sky & Ocean <span class="sky-settings-hint">G to close</span></div>`;
+  panel.innerHTML = `<div class="sky-settings-title">Sky & Ocean</div>`;
 
   const rows = [];
 
@@ -95,18 +95,17 @@ export function initSkySettings(ocean, renderer) {
   panel.addEventListener('mousedown', e => e.stopPropagation());
   panel.addEventListener('wheel', e => e.stopPropagation());
 
-  // Toggle with G
   let visible = false;
-  window.addEventListener('keydown', (e) => {
-    if (e.target.closest('#sky-settings') || e.target.closest('#music-panel')) return;
-    if (e.code === 'KeyG' && !e.repeat) {
-      visible = !visible;
-      panel.classList.toggle('hidden', !visible);
-    }
-  });
+  function toggle() {
+    visible = !visible;
+    panel.classList.toggle('hidden', !visible);
+    return visible;
+  }
 
   function fmtVal(v, step) {
     const decimals = step < 0.001 ? 4 : step < 0.01 ? 3 : step < 1 ? 2 : 0;
     return v.toFixed(decimals);
   }
+
+  return { toggle };
 }
