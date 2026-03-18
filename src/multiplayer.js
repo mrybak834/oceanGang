@@ -83,6 +83,11 @@ export async function initMultiplayer(sceneRef, localBoat, cameraRef) {
                 x: player.x, y: player.y, z: player.z,
                 rx: player.rx, ry: player.ry, rz: player.rz,
               };
+              // Apply ship customization if it changed (lerped, not instant)
+              if (player.shipState && player.shipState !== remote.lastShipState) {
+                applyShipState(remote.boat, player.shipState, false);
+                remote.lastShipState = player.shipState;
+              }
             }
           } else if (player.online) {
             // Player came back online
@@ -164,11 +169,32 @@ export function updateRemotePlayers(time) {
     b.rotation.z += (t.rz - b.rotation.z) * lerp;
 
     animateRemoteSails(b, time);
+    lerpShipState(b);
   }
 }
 
 export function getRemotePlayerCount() {
   return remotePlayers.size;
+}
+
+// Call this when the local player saves their editor/designer state
+export function syncShipState(editorState, designerState) {
+  if (!initialized || !connection) return;
+  const payload = JSON.stringify({ editor: editorState, designer: designerState });
+  connection.reducers.updateShipState({ shipState: payload });
+}
+
+// Send initial ship state on connect (so others see your custom ship)
+export function syncInitialShipState() {
+  if (!initialized || !connection) return;
+  try {
+    const editor = JSON.parse(localStorage.getItem('oceanGang_editor_v1') || 'null');
+    const designer = JSON.parse(localStorage.getItem('oceanGang_designer_v1') || 'null');
+    if (editor || designer) {
+      const payload = JSON.stringify({ editor, designer });
+      connection.reducers.updateShipState({ shipState: payload });
+    }
+  } catch {}
 }
 
 // ─── Multiplayer Info Panel ───
@@ -306,6 +332,11 @@ function spawnRemoteBoat(player) {
   colorIndex++;
   tintSails(boat, color);
 
+  // Apply their ship customization if available (instant on first spawn)
+  if (player.shipState) {
+    applyShipState(boat, player.shipState, true);
+  }
+
   remotePlayers.set(key, {
     boat,
     target: {
@@ -313,6 +344,78 @@ function spawnRemoteBoat(player) {
       rx: player.rx, ry: player.ry, rz: player.rz,
     },
   });
+}
+
+// Parse ship state and store targets for smooth interpolation
+function applyShipState(boat, shipStateJson, instant) {
+  try {
+    const { editor, designer } = JSON.parse(shipStateJson);
+    if (instant) {
+      // First load — snap directly
+      if (editor && boat.userData.applyEditorState) boat.userData.applyEditorState(editor);
+      if (designer && boat.userData.applyDesignerState) boat.userData.applyDesignerState(designer);
+      return;
+    }
+    // Store targets for lerping
+    if (!boat.userData._shipTargets) boat.userData._shipTargets = {};
+    const targets = boat.userData._shipTargets;
+    const editableObjects = boat.userData.editableObjects || [];
+
+    if (editor) {
+      for (const obj of editableObjects) {
+        const pos = editor[obj.name];
+        if (pos) {
+          if (!targets[obj.name]) targets[obj.name] = {};
+          targets[obj.name].pos = pos;
+        }
+      }
+    }
+
+    if (designer) {
+      for (const obj of editableObjects) {
+        const objState = designer[obj.name];
+        if (!objState) continue;
+        if (!targets[obj.name]) targets[obj.name] = {};
+        targets[obj.name].children = objState;
+      }
+    }
+  } catch {}
+}
+
+// Lerp editable objects toward their target positions each frame
+function lerpShipState(boat) {
+  const targets = boat.userData._shipTargets;
+  if (!targets) return;
+  const editableObjects = boat.userData.editableObjects || [];
+  const t = 0.2; // smooth factor
+
+  for (const obj of editableObjects) {
+    const tgt = targets[obj.name];
+    if (!tgt) continue;
+
+    // Lerp object position
+    if (tgt.pos) {
+      obj.position.x += (tgt.pos.x - obj.position.x) * t;
+      obj.position.y += (tgt.pos.y - obj.position.y) * t;
+      obj.position.z += (tgt.pos.z - obj.position.z) * t;
+    }
+
+    // Lerp child positions
+    if (tgt.children) {
+      let idx = 0;
+      obj.traverse((child) => {
+        if (child === obj) return;
+        const key = `_${idx}`;
+        idx++;
+        const cp = tgt.children[key];
+        if (cp) {
+          child.position.x += (cp.x - child.position.x) * t;
+          child.position.y += (cp.y - child.position.y) * t;
+          child.position.z += (cp.z - child.position.z) * t;
+        }
+      });
+    }
+  }
 }
 
 function shortAngleLerp(from, to, t) {

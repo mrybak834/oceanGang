@@ -1099,6 +1099,10 @@ export function createBoat(scene) {
       } catch {}
     });
 
+  // Expose apply functions for multiplayer sync
+  boat.userData.applyEditorState = applyEditorState;
+  boat.userData.applyDesignerState = applyDesignerState;
+
   scene.add(boat);
   return boat;
 }

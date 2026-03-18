@@ -16,7 +16,7 @@ import { createInstrumentRegistry } from './instruments.js';
 import { createCompass } from './compass.js';
 import { createCreatures } from './creatures.js';
 import { createTouchControls } from './touchControls.js';
-import { initMultiplayer, sendLocalState, updateRemotePlayers, createMultiplayerPanel } from './multiplayer.js';
+import { initMultiplayer, sendLocalState, updateRemotePlayers, createMultiplayerPanel, syncShipState, syncInitialShipState } from './multiplayer.js';
 import { updateChat } from './chat.js';
 
 let camera, scene, renderer;
@@ -28,6 +28,8 @@ let wasJumping = false;
 let wasSplashing = false;
 let shipEditor = null;
 let multiplayerPanel = null;
+let lastEditorSyncTime = 0;
+const EDITOR_SYNC_INTERVAL = 100; // ms — sync editor state at ~10Hz
 const ISLAND_VISIBLE_DIST = 3000;
 const ISLAND_HIDE_DIST = 3200;
 
@@ -207,7 +209,9 @@ function init() {
 
   // Multiplayer — connect and sync boats with other players
   multiplayerPanel = createMultiplayerPanel();
-  initMultiplayer(scene, boat, camera).catch(err => console.warn('Multiplayer init failed:', err));
+  initMultiplayer(scene, boat, camera)
+    .then(() => syncInitialShipState())
+    .catch(err => console.warn('Multiplayer init failed:', err));
 }
 
 function onWindowResize() {
@@ -234,6 +238,15 @@ function animate() {
   sendLocalState(boat);
   updateRemotePlayers(time);
   updateChat();
+
+  // Live-sync editor changes to other players
+  if (shipEditor?.editorActive) {
+    const now = performance.now();
+    if (now - lastEditorSyncTime > EDITOR_SYNC_INTERVAL) {
+      lastEditorSyncTime = now;
+      syncShipState(shipEditor.buildEditorState(), shipEditor.buildDesignerState());
+    }
+  }
   perfTracker.markEnd('boat');
 
   // Update water time
@@ -604,6 +617,8 @@ function initShipEditor() {
   async function saveEditorState() {
     const state = buildEditorState();
     try { localStorage.setItem('oceanGang_editor_v1', JSON.stringify(state)); } catch {}
+    // Sync to multiplayer
+    syncShipState(state, buildDesignerState());
     try {
       const res = await fetch('/__save_editor', {
         method: 'POST',
@@ -1092,6 +1107,8 @@ function initShipEditor() {
     const state = buildDesignerState();
     // Always save to localStorage (works everywhere)
     try { localStorage.setItem('oceanGang_designer_v1', JSON.stringify(state)); } catch {}
+    // Sync to multiplayer
+    syncShipState(buildEditorState(), state);
     // Also try Vite dev endpoint to write to public/designerState.json
     try {
       const res = await fetch('/__save_designer', {
@@ -1364,6 +1381,8 @@ function initShipEditor() {
     isDragging: false,
     editorActive: false,
     renderDesigner,
+    buildEditorState,
+    buildDesignerState,
   };
 
   // ── Selection logic ──
