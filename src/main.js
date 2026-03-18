@@ -16,6 +16,7 @@ import { createInstrumentRegistry } from './instruments.js';
 import { createCompass } from './compass.js';
 import { createCreatures } from './creatures.js';
 import { createTouchControls } from './touchControls.js';
+import { initMultiplayer, sendLocalState, updateRemotePlayers } from './multiplayer.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
@@ -201,6 +202,9 @@ function init() {
 
   // Title screen
   createTitleScreen();
+
+  // Multiplayer — connect and sync boats with other players
+  initMultiplayer(scene).catch(err => console.warn('Multiplayer init failed:', err));
 }
 
 function onWindowResize() {
@@ -224,6 +228,8 @@ function animate() {
   if (!shipEditor?.editorActive) {
     boatController.update(boat, delta, time);
   }
+  sendLocalState(boat);
+  updateRemotePlayers(time);
   perfTracker.markEnd('boat');
 
   // Update water time
@@ -749,6 +755,286 @@ function initShipEditor() {
   });
   designerPanel.appendChild(dChildList);
 
+  // ── Redesign UI ──
+  let dCompareObj = null;
+  let dCompareMode = false;
+
+  const redesignRow = document.createElement('div');
+  Object.assign(redesignRow.style, {
+    display: 'flex', gap: '6px', flexShrink: '0', marginBottom: '6px',
+  });
+  designerPanel.appendChild(redesignRow);
+
+  const redesignInput = document.createElement('input');
+  redesignInput.type = 'text';
+  redesignInput.placeholder = 'Describe redesign...';
+  Object.assign(redesignInput.style, {
+    flex: '1', padding: '6px 8px', borderRadius: '6px', fontSize: '11px',
+    border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.06)',
+    color: '#f5ead7',
+  });
+  redesignRow.appendChild(redesignInput);
+
+  const redesignBtn = document.createElement('button');
+  redesignBtn.type = 'button';
+  redesignBtn.textContent = 'Redesign';
+  Object.assign(redesignBtn.style, {
+    padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600',
+    border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.1)',
+    color: '#c084fc', cursor: 'pointer', flexShrink: '0',
+  });
+  redesignRow.appendChild(redesignBtn);
+
+
+  const redesignStatus = document.createElement('div');
+  Object.assign(redesignStatus.style, {
+    fontSize: '10px', color: 'rgba(245,234,215,0.5)', flexShrink: '0', marginBottom: '4px',
+    minHeight: '14px',
+  });
+  designerPanel.appendChild(redesignStatus);
+
+  // Accept/Discard buttons (hidden until comparison)
+  const compareRow = document.createElement('div');
+  Object.assign(compareRow.style, {
+    display: 'none', gap: '8px', flexShrink: '0', marginBottom: '6px',
+  });
+  designerPanel.appendChild(compareRow);
+
+  const acceptBtn = document.createElement('button');
+  acceptBtn.type = 'button';
+  acceptBtn.textContent = 'Accept';
+  Object.assign(acceptBtn.style, {
+    flex: '1', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+    border: '1px solid rgba(34,197,94,0.5)', background: 'rgba(34,197,94,0.15)',
+    color: '#4ade80', cursor: 'pointer',
+  });
+  compareRow.appendChild(acceptBtn);
+
+  const discardBtn = document.createElement('button');
+  discardBtn.type = 'button';
+  discardBtn.textContent = 'Discard';
+  Object.assign(discardBtn.style, {
+    flex: '1', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+    border: '1px solid rgba(220,38,38,0.5)', background: 'rgba(220,38,38,0.15)',
+    color: '#f87171', cursor: 'pointer',
+  });
+  compareRow.appendChild(discardBtn);
+
+  // Serialize object for AI
+  function serializeObjectForAI(obj) {
+    const children = [];
+    obj.traverse((child) => {
+      if (child === obj || !child.isMesh) return;
+      const geo = child.geometry;
+      const mat = child.material;
+      const geoInfo = geo.parameters
+        ? { type: geo.type, parameters: geo.parameters }
+        : { type: geo.type, approximateSize: (() => {
+            const b = new THREE.Box3().setFromBufferAttribute(geo.attributes.position);
+            const s = b.getSize(new THREE.Vector3());
+            return [+s.x.toFixed(3), +s.y.toFixed(3), +s.z.toFixed(3)];
+          })() };
+      children.push({
+        name: child.name || undefined,
+        geometry: geoInfo,
+        material: {
+          color: mat.color ? '#' + mat.color.getHexString() : '#888888',
+          metalness: mat.metalness ?? 0.3,
+          roughness: mat.roughness ?? 0.7,
+        },
+        position: [+child.position.x.toFixed(4), +child.position.y.toFixed(4), +child.position.z.toFixed(4)],
+        rotation: [+child.rotation.x.toFixed(4), +child.rotation.y.toFixed(4), +child.rotation.z.toFixed(4)],
+        scale: [+child.scale.x.toFixed(4), +child.scale.y.toFixed(4), +child.scale.z.toFixed(4)],
+      });
+    });
+    return { name: obj.name, children };
+  }
+
+  // Build Three.js object from AI design JSON
+  function buildObjectFromDesign(design) {
+    const group = new THREE.Group();
+    const geoTypes = {
+      BoxGeometry: THREE.BoxGeometry,
+      SphereGeometry: THREE.SphereGeometry,
+      CylinderGeometry: THREE.CylinderGeometry,
+      ConeGeometry: THREE.ConeGeometry,
+      TorusGeometry: THREE.TorusGeometry,
+      PlaneGeometry: THREE.PlaneGeometry,
+      TorusKnotGeometry: THREE.TorusKnotGeometry,
+    };
+    for (const c of (design.children || [])) {
+      const GeoClass = geoTypes[c.geometry?.type];
+      if (!GeoClass) continue;
+      const geo = new GeoClass(...(c.geometry.args || []));
+      const mat = new THREE.MeshStandardMaterial({
+        color: c.material?.color || '#888888',
+        metalness: c.material?.metalness ?? 0.3,
+        roughness: c.material?.roughness ?? 0.7,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      if (c.name) mesh.name = c.name;
+      if (c.position) mesh.position.set(...c.position);
+      if (c.rotation) mesh.rotation.set(...c.rotation);
+      if (c.scale) mesh.scale.set(...c.scale);
+      group.add(mesh);
+    }
+    return group;
+  }
+
+  function disposeObject(obj) {
+    obj.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+        else child.material.dispose();
+      }
+    });
+  }
+
+  function enterCompareMode(newObj) {
+    dCompareObj = newObj;
+    dCompareMode = true;
+    selectDesignerChild(null);
+    redesignRow.style.display = 'none';
+    compareRow.style.display = 'flex';
+    dChildList.style.display = 'none';
+    redesignStatus.textContent = 'Comparing — choose to accept or discard';
+    // Zoom out to see both
+    if (dSourceObj) {
+      const box = new THREE.Box3().setFromObject(dSourceObj);
+      const size = box.getSize(new THREE.Vector3());
+      dOrbitDist = Math.max(size.x, size.y, size.z) * 4;
+      dOrbitCenter.set(0, 0, 0);
+    }
+  }
+
+  function exitCompareMode() {
+    if (dCompareObj) { disposeObject(dCompareObj); dCompareObj = null; }
+    dCompareMode = false;
+    redesignRow.style.display = 'flex';
+    compareRow.style.display = 'none';
+    dChildList.style.display = 'grid';
+    redesignStatus.textContent = '';
+    // Refit camera
+    if (dSourceObj) {
+      const box = new THREE.Box3().setFromObject(dSourceObj);
+      const size = box.getSize(new THREE.Vector3());
+      dOrbitDist = Math.max(size.x, size.y, size.z) * 2;
+      dOrbitCenter.set(0, 0, 0);
+    }
+  }
+
+  // Redesign button click
+  redesignBtn.addEventListener('click', () => {
+    const instruction = redesignInput.value.trim();
+    if (!instruction) return;
+    if (!dSourceObj) { redesignStatus.textContent = 'Select a part first'; return; }
+
+    redesignBtn.disabled = true;
+    redesignBtn.textContent = 'Thinking...';
+    redesignStatus.textContent = 'Sending to Claude...';
+
+    const objectData = serializeObjectForAI(dSourceObj);
+
+    // POST the request, then read the SSE stream from the response
+    fetch('/__redesign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objectData, instruction }),
+    }).then(response => {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      function read() {
+        reader.read().then(({ done, value }) => {
+          if (done) {
+            redesignBtn.disabled = false;
+            redesignBtn.textContent = 'Redesign';
+            return;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          // Parse SSE events from buffer
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep incomplete line
+          let eventType = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7);
+            } else if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (eventType === 'status') {
+                  redesignStatus.textContent = data.message;
+                } else if (eventType === 'done') {
+                  if (data.ok) {
+                    const newObj = buildObjectFromDesign(data.design);
+                    if (newObj.children.length === 0) {
+                      redesignStatus.textContent = 'Error: Claude returned an empty design';
+                      redesignStatus.style.color = '#f87171';
+                    } else {
+                      enterCompareMode(newObj);
+                    }
+                  } else {
+                    redesignStatus.textContent = 'Error: ' + (data.error || 'Unknown');
+                    redesignStatus.style.color = '#f87171';
+                  }
+                  redesignBtn.disabled = false;
+                  redesignBtn.textContent = 'Redesign';
+                  setTimeout(() => { redesignStatus.style.color = 'rgba(245,234,215,0.5)'; }, 5000);
+                }
+              } catch {}
+            }
+          }
+          read();
+        });
+      }
+      read();
+    }).catch(err => {
+      redesignStatus.textContent = 'Error: ' + err.message;
+      redesignStatus.style.color = '#f87171';
+      redesignBtn.disabled = false;
+      redesignBtn.textContent = 'Redesign';
+      setTimeout(() => { redesignStatus.style.color = 'rgba(245,234,215,0.5)'; }, 3000);
+    });
+  });
+
+  redesignInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') redesignBtn.click();
+  });
+
+  // Accept: replace original's children with new design's children
+  acceptBtn.addEventListener('click', () => {
+    if (!dSourceObj || !dCompareObj) return;
+    // Remove old mesh children
+    const toRemove = [];
+    dSourceObj.traverse((child) => {
+      if (child !== dSourceObj && child.isMesh) toRemove.push(child);
+    });
+    for (const child of toRemove) {
+      child.parent.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+    // Move new children into source object
+    while (dCompareObj.children.length > 0) {
+      const child = dCompareObj.children[0];
+      dSourceObj.add(child);
+    }
+    dCompareObj = null;
+    dCompareMode = false;
+    redesignRow.style.display = 'flex';
+    compareRow.style.display = 'none';
+    dChildList.style.display = 'grid';
+    redesignStatus.textContent = 'Redesign accepted!';
+    setTimeout(() => { redesignStatus.textContent = ''; }, 2000);
+    // Refresh child list
+    openDesigner();
+  });
+
+  // Discard
+  discardBtn.addEventListener('click', () => exitCompareMode());
+
   // Designer TransformControls for moving parts
   const dTransform = new TransformControls(dCamera, designerCanvas);
   dTransform.setMode('translate');
@@ -899,6 +1185,7 @@ function initShipEditor() {
   }
 
   function closeDesigner() {
+    if (dCompareMode) exitCompareMode();
     selectDesignerChild(null);
     dSourceObj = null;
     dChildren = [];
@@ -930,7 +1217,7 @@ function initShipEditor() {
   const dRaycaster = new THREE.Raycaster();
   const dPointer = new THREE.Vector2();
   designerCanvas.addEventListener('click', (e) => {
-    if (!dSourceObj || dTransformDragging) return;
+    if (!dSourceObj || dTransformDragging || dCompareMode) return;
     const rect = designerCanvas.getBoundingClientRect();
     dPointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     dPointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1007,18 +1294,33 @@ function initShipEditor() {
       dOrbitCenter.z + Math.cos(dOrbitYaw) * Math.cos(dOrbitPitch) * dOrbitDist,
     );
     dCamera.lookAt(dOrbitCenter);
-    // Temporarily reparent the real object into designer scene at origin
+
+    // Temporarily reparent the real object into designer scene
     const parent = dSourceObj.parent;
     dSavedPos.copy(dSourceObj.position);
     dSavedRot.copy(dSourceObj.rotation);
-    dSourceObj.position.set(0, 0, 0);
     dSourceObj.rotation.set(0, 0, 0);
-    dScene.add(dSourceObj);
-    dSourceObj.updateMatrixWorld(true);
 
-    if (dSelectedChild && dBoxHelper.visible) dBoxHelper.setFromObject(dSelectedChild);
-
-    dRenderer.render(dScene, dCamera);
+    if (dCompareMode && dCompareObj) {
+      // Side-by-side: original on left, new on right
+      const box = new THREE.Box3().setFromObject(dSourceObj);
+      const size = box.getSize(new THREE.Vector3());
+      const offset = Math.max(size.x, size.y, size.z) * 0.8;
+      dSourceObj.position.set(-offset, 0, 0);
+      dScene.add(dSourceObj);
+      dCompareObj.position.set(offset, 0, 0);
+      dScene.add(dCompareObj);
+      dSourceObj.updateMatrixWorld(true);
+      dCompareObj.updateMatrixWorld(true);
+      dRenderer.render(dScene, dCamera);
+      dScene.remove(dCompareObj);
+    } else {
+      dSourceObj.position.set(0, 0, 0);
+      dScene.add(dSourceObj);
+      dSourceObj.updateMatrixWorld(true);
+      if (dSelectedChild && dBoxHelper.visible) dBoxHelper.setFromObject(dSelectedChild);
+      dRenderer.render(dScene, dCamera);
+    }
 
     // Put it back
     dSourceObj.position.copy(dSavedPos);

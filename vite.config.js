@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
+import cloudflareTunnel from 'vite-plugin-cloudflare-tunnel';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -159,6 +161,133 @@ function githubProxyPlugin() {
   };
 }
 
+function redesignPlugin() {
+  return {
+    name: 'redesign-proxy',
+    configureServer(server) {
+      server.middlewares.use('/__redesign', (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+          try {
+            const { objectData, instruction } = JSON.parse(body);
+
+            const fullPrompt = `You are a 3D object designer for a pirate sailing game built with Three.js.
+
+Current object "${objectData.name}":
+${JSON.stringify(objectData, null, 2)}
+
+Redesign instruction: ${instruction}
+
+Return ONLY valid JSON (no markdown fences, no explanation) matching this schema:
+{"children":[{"name":"part name","geometry":{"type":"BoxGeometry","args":[w,h,d]},"material":{"color":"#hex","metalness":0.3,"roughness":0.7},"position":[x,y,z],"rotation":[x,y,z],"scale":[1,1,1]}]}
+
+Geometry types: BoxGeometry(w,h,d), SphereGeometry(r,wSeg,hSeg), CylinderGeometry(rTop,rBot,h,rSeg), ConeGeometry(r,h,rSeg), TorusGeometry(r,tube,rSeg,tSeg), PlaneGeometry(w,h).
+Rules: ONLY JSON, same scale as original, creative, pirate ship colors, radians for rotation.`;
+
+            console.log(`\n  Redesign request: "${instruction}" for ${objectData.name}`);
+
+            // Use SSE to stream progress to the browser
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+
+            const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+            send('status', { message: 'Starting Claude Code...' });
+
+            const proc = spawn('claude', [
+              '-p', fullPrompt,
+              '--output-format', 'stream-json',
+              '--verbose',
+            ], { stdio: ['inherit', 'pipe', 'pipe'] });
+
+            let fullOutput = '';
+            let charCount = 0;
+            proc.stdout.on('data', (d) => {
+              const chunk = d.toString();
+              fullOutput += chunk;
+              // Parse stream-json lines for progress
+              for (const line of chunk.split('\n')) {
+                if (!line.trim()) continue;
+                try {
+                  const evt = JSON.parse(line);
+                  if (evt.type === 'assistant' && evt.message?.content) {
+                    for (const block of evt.message.content) {
+                      if (block.type === 'text' && block.text) {
+                        charCount += block.text.length;
+                        send('status', { message: `Claude generating... (${charCount} chars)` });
+                      }
+                    }
+                  } else if (evt.type === 'result') {
+                    // Final result
+                    const text = evt.result || '';
+                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                      const design = JSON.parse(jsonMatch[0]);
+                      console.log(`  Redesign complete: ${design.children?.length || 0} parts\n`);
+                      send('done', { ok: true, design });
+                      res.end();
+                      return;
+                    }
+                  }
+                } catch {}
+              }
+            });
+
+            proc.stderr.on('data', (d) => {
+              const msg = d.toString().trim();
+              if (msg) send('status', { message: msg.slice(0, 100) });
+            });
+
+            const timeout = setTimeout(() => {
+              proc.kill();
+              send('done', { ok: false, error: 'Claude Code timed out (120s)' });
+              res.end();
+            }, 120000);
+
+            proc.on('close', (code) => {
+              clearTimeout(timeout);
+              if (res.writableEnded) return;
+
+              if (code !== 0) {
+                console.error('  Claude Code exited with code', code);
+                send('done', { ok: false, error: `Claude Code exited with code ${code}` });
+                res.end();
+                return;
+              }
+
+              // Fallback: try to parse result from accumulated output
+              const jsonMatch = fullOutput.match(/"result"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+              if (jsonMatch) {
+                try {
+                  const text = JSON.parse('"' + jsonMatch[1] + '"');
+                  const designMatch = text.match(/\{[\s\S]*\}/);
+                  if (designMatch) {
+                    const design = JSON.parse(designMatch[0]);
+                    console.log(`  Redesign complete (fallback): ${design.children?.length || 0} parts\n`);
+                    send('done', { ok: true, design });
+                    res.end();
+                    return;
+                  }
+                } catch {}
+              }
+
+              console.error('  Could not parse Claude response');
+              send('done', { ok: false, error: 'Could not parse design from Claude response' });
+              res.end();
+            });
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: false, error: err.message }));
+          }
+        });
+      });
+    },
+  };
+}
+
 function editorSavePlugin() {
   return {
     name: 'editor-save',
@@ -223,7 +352,7 @@ function designerSavePlugin() {
 
 export default defineConfig({
   base: '/oceanGang/',
-  plugins: [perfReportPlugin(), musicSceneSavePlugin(), githubProxyPlugin(), editorSavePlugin(), designerSavePlugin()],
+  plugins: [perfReportPlugin(), musicSceneSavePlugin(), githubProxyPlugin(), redesignPlugin(), editorSavePlugin(), designerSavePlugin(), cloudflareTunnel()],
   resolve: {
     dedupe: ['superdough', '@strudel/webaudio', '@strudel/repl'],
   },
