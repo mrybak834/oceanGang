@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SpacetimeDB generated bindings (regenerated on dev start)
+src/module_bindings/
+!src/module_bindings/index.js

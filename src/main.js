@@ -16,7 +16,7 @@ import { createInstrumentRegistry } from './instruments.js';
 import { createCompass } from './compass.js';
 import { createCreatures } from './creatures.js';
 import { createTouchControls } from './touchControls.js';
-import { initMultiplayer, sendLocalState, updateRemotePlayers } from './multiplayer.js';
+import { initMultiplayer, sendLocalState, updateRemotePlayers, createMultiplayerPanel } from './multiplayer.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
@@ -26,6 +26,7 @@ let islandGroups = [], islandPositions = [];
 let wasJumping = false;
 let wasSplashing = false;
 let shipEditor = null;
+let multiplayerPanel = null;
 const ISLAND_VISIBLE_DIST = 3000;
 const ISLAND_HIDE_DIST = 3200;
 
@@ -204,6 +205,7 @@ function init() {
   createTitleScreen();
 
   // Multiplayer — connect and sync boats with other players
+  multiplayerPanel = createMultiplayerPanel();
   initMultiplayer(scene).catch(err => console.warn('Multiplayer init failed:', err));
 }
 
@@ -1613,6 +1615,7 @@ function initMenuBar() {
     { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>', title: 'Sky & Ocean', action: () => skySettings.toggle() },
     { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>', title: 'Ship Editor', action: () => shipEditor?.toggleEditor() },
     { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>', title: 'Performance', action: () => perfTracker.toggle() },
+    { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', title: 'Multiplayer', action: () => multiplayerPanel?.toggle() },
   ];
 
   for (const item of items) {

@@ -1,0 +1,60 @@
+// ─── SpacetimeDB Server Module: Ocean Gang Multiplayer ───
+import { schema, table, t } from 'spacetimedb/server';
+
+const spacetimedb = schema({
+  player: table(
+    { public: true },
+    {
+      identity: t.identity().primaryKey(),
+      x: t.f32(),
+      y: t.f32(),
+      z: t.f32(),
+      rx: t.f32(),
+      ry: t.f32(),
+      rz: t.f32(),
+      online: t.bool(),
+    }
+  ),
+});
+
+export default spacetimedb;
+
+export const init = spacetimedb.init(_ctx => {});
+
+export const onConnect = spacetimedb.clientConnected(ctx => {
+  const existing = ctx.db.player.identity.find(ctx.sender);
+  if (existing) {
+    ctx.db.player.identity.update({ ...existing, online: true });
+  } else {
+    ctx.db.player.insert({
+      identity: ctx.sender,
+      x: 0, y: 0, z: 0,
+      rx: 0, ry: 0, rz: 0,
+      online: true,
+    });
+  }
+});
+
+export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
+  const player = ctx.db.player.identity.find(ctx.sender);
+  if (player) {
+    ctx.db.player.identity.update({ ...player, online: false });
+  }
+});
+
+export const updatePosition = spacetimedb.reducer(
+  {
+    x: t.f32(),
+    y: t.f32(),
+    z: t.f32(),
+    rx: t.f32(),
+    ry: t.f32(),
+    rz: t.f32(),
+  },
+  (ctx, { x, y, z, rx, ry, rz }) => {
+    const player = ctx.db.player.identity.find(ctx.sender);
+    if (player) {
+      ctx.db.player.identity.update({ ...player, x, y, z, rx, ry, rz });
+    }
+  }
+);

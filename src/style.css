@@ -1507,6 +1507,91 @@ canvas {
   min-height: 14px;
 }
 
+/* ─── Multiplayer Panel ─── */
+
+.mp-panel {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 200;
+  background: rgba(8, 10, 24, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-width: 200px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.mp-panel.mp-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+}
+
+.mp-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.mp-section {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.mp-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+}
+
+.mp-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+}
+
+.mp-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mp-player-list {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+
+.mp-player-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1px 0;
+}
+
+.mp-player-id {
+  color: rgba(255,255,255,0.6);
+  font-family: monospace;
+  font-size: 10px;
+}
+
+.mp-player-pos {
+  color: rgba(255,255,255,0.35);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+}
+
 /* ─── Menu Bar (top-right unified bar) ─── */
 
 .menu-bar {

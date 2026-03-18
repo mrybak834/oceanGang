@@ -2,7 +2,8 @@ import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
+import net from 'net';
 import cloudflareTunnel from 'vite-plugin-cloudflare-tunnel';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -350,9 +351,187 @@ function designerSavePlugin() {
   };
 }
 
+// ─── SpacetimeDB Plugin ───
+// Automatically starts a local SpacetimeDB server (via CLI or Docker), publishes
+// the game module, and generates client bindings so multiplayer works with `npm run dev`.
+function spacetimePlugin() {
+  let serverProc = null;
+  let usingDocker = false;
+  const CONTAINER_NAME = 'ocean-gang-stdb';
+  const SPACETIME_PORT = 3000;
+  const SERVER_MODULE_PATH = path.resolve(__dirname, 'server');
+  const BINDINGS_OUT = path.resolve(__dirname, 'src/module_bindings');
+  const DB_NAME = 'ocean-gang';
+  const DOCKER_IMAGE = 'clockworklabs/spacetime';
+
+  function isPortOpen(port) {
+    return new Promise((resolve) => {
+      const sock = net.createConnection({ port, host: '127.0.0.1' }, () => {
+        sock.destroy();
+        resolve(true);
+      });
+      sock.on('error', () => resolve(false));
+    });
+  }
+
+  async function waitForPort(port, timeoutMs = 30000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (await isPortOpen(port)) return true;
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return false;
+  }
+
+  // spacetime CLI may be in ~/.local/bin which isn't in Node's default PATH
+  const SPACETIME_BIN = (() => {
+    const candidates = [
+      'spacetime',
+      path.join(process.env.HOME || '', '.local', 'bin', 'spacetime'),
+      path.join(process.env.HOME || '', '.spacetime', 'bin', 'spacetime'),
+    ];
+    for (const bin of candidates) {
+      try {
+        // Use --help since `spacetime version` is a subcommand group (exits non-zero)
+        execSync(`"${bin}" --help`, { stdio: 'pipe' });
+        return bin;
+      } catch {
+        // Also check if the binary simply exists and is executable
+        try {
+          if (fs.existsSync(bin)) return bin;
+        } catch {}
+      }
+    }
+    return null;
+  })();
+
+  function hasCli() {
+    return SPACETIME_BIN !== null;
+  }
+
+  function hasDocker() {
+    try {
+      execSync('docker info', { stdio: 'pipe', timeout: 5000 });
+      return true;
+    } catch { return false; }
+  }
+
+  // Run a spacetime CLI command — via native CLI or docker exec
+  function stCmd(args, opts = {}) {
+    if (usingDocker) {
+      return execSync(`docker exec ${CONTAINER_NAME} spacetime ${args}`, { stdio: 'pipe', ...opts });
+    }
+    return execSync(`"${SPACETIME_BIN}" ${args}`, { stdio: 'pipe', ...opts });
+  }
+
+  return {
+    name: 'spacetime',
+    async configureServer(server) {
+      const cliAvailable = hasCli();
+      const dockerAvailable = !cliAvailable && hasDocker();
+
+      if (!cliAvailable && !dockerAvailable) {
+        console.log('\n  ⚠  SpacetimeDB multiplayer disabled (no CLI or Docker found).');
+        console.log('  Install CLI: curl -sSf https://install.spacetimedb.com | sh');
+        console.log('  Or install Docker: https://docker.com\n');
+        return;
+      }
+
+      usingDocker = !cliAvailable;
+      const mode = usingDocker ? 'Docker' : 'CLI';
+      console.log(`\n  SpacetimeDB multiplayer starting (${mode})...`);
+
+      // ── Start server ──
+      const alreadyRunning = await isPortOpen(SPACETIME_PORT);
+      if (!alreadyRunning) {
+        if (usingDocker) {
+          // Remove stale container if it exists
+          try { execSync(`docker rm -f ${CONTAINER_NAME}`, { stdio: 'pipe' }); } catch {}
+
+          console.log('  Starting SpacetimeDB Docker container (first run may pull image)...');
+          execSync([
+            'docker', 'run', '-d',
+            '--name', CONTAINER_NAME,
+            '-p', `${SPACETIME_PORT}:${SPACETIME_PORT}`,
+            '-v', `${SERVER_MODULE_PATH}:/module`,
+            '-v', `${BINDINGS_OUT}:/bindings`,
+            DOCKER_IMAGE, 'start',
+          ].join(' '), { stdio: 'pipe' });
+        } else {
+          console.log('  Starting SpacetimeDB server...');
+          serverProc = spawn(SPACETIME_BIN, ['start'], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+          serverProc.stderr.on('data', (d) => {
+            const msg = d.toString().trim();
+            if (msg && !msg.includes('INFO')) console.log('  [spacetime]', msg);
+          });
+        }
+
+        const ready = await waitForPort(SPACETIME_PORT);
+        if (!ready) {
+          console.error('  SpacetimeDB did not start in time. Multiplayer disabled.\n');
+          if (usingDocker) {
+            try { execSync(`docker rm -f ${CONTAINER_NAME}`, { stdio: 'pipe' }); } catch {}
+          } else if (serverProc) {
+            serverProc.kill();
+          }
+          return;
+        }
+        console.log('  SpacetimeDB running on port', SPACETIME_PORT);
+      } else {
+        console.log('  SpacetimeDB already running on port', SPACETIME_PORT);
+        // If Docker container exists, use docker exec; otherwise assume CLI
+        if (usingDocker) {
+          try {
+            const running = execSync(`docker ps --filter name=${CONTAINER_NAME} --format "{{.Names}}"`, { stdio: 'pipe' });
+            if (running.toString().trim() !== CONTAINER_NAME) {
+              usingDocker = false; // Port open but not our container — someone else started it
+            }
+          } catch {}
+        }
+      }
+
+      // ── Publish server module ──
+      // Run from server/ dir so spacetime.json config is found automatically
+      const cwd = SERVER_MODULE_PATH;
+      try {
+        console.log('  Publishing server module...');
+        stCmd(`publish -s local --delete-data=on-conflict --yes ${DB_NAME}`, { cwd });
+        console.log('  Module published as "' + DB_NAME + '"');
+      } catch (err) {
+        console.error('  Failed to publish:', (err.stderr || err.stdout || '').toString().trim());
+      }
+
+      // ── Generate client bindings ──
+      try {
+        fs.mkdirSync(BINDINGS_OUT, { recursive: true });
+        console.log('  Generating client bindings...');
+        stCmd(`generate --lang typescript --out-dir "${BINDINGS_OUT}" --yes`, { cwd });
+        console.log('  Bindings generated at src/module_bindings/\n');
+      } catch (err) {
+        console.error('  Failed to generate bindings:', (err.stderr || '').toString().trim());
+      }
+
+      // ── Cleanup on shutdown ──
+      const cleanup = () => {
+        if (usingDocker) {
+          try { execSync(`docker rm -f ${CONTAINER_NAME}`, { stdio: 'pipe' }); } catch {}
+        } else if (serverProc) {
+          serverProc.kill();
+          serverProc = null;
+        }
+      };
+      server.httpServer?.on('close', cleanup);
+      process.on('SIGINT', () => { cleanup(); process.exit(); });
+      process.on('SIGTERM', () => { cleanup(); process.exit(); });
+    },
+  };
+}
+
 export default defineConfig({
   base: '/oceanGang/',
-  plugins: [perfReportPlugin(), musicSceneSavePlugin(), githubProxyPlugin(), redesignPlugin(), editorSavePlugin(), designerSavePlugin(), cloudflareTunnel()],
+  plugins: [spacetimePlugin(), perfReportPlugin(), musicSceneSavePlugin(), githubProxyPlugin(), redesignPlugin(), editorSavePlugin(), designerSavePlugin(), cloudflareTunnel()],
   resolve: {
     dedupe: ['superdough', '@strudel/webaudio', '@strudel/repl'],
   },
