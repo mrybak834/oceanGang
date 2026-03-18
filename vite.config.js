@@ -302,6 +302,7 @@ function spacetimePlugin() {
   const SERVER_MODULE_PATH = path.resolve(__dirname, 'server');
   const BINDINGS_OUT = path.resolve(__dirname, 'src/module_bindings');
   const DB_NAME = 'ocean-gang';
+  const DATA_DIR = path.resolve(__dirname, '.spacetimedb');
   const DOCKER_IMAGE = 'clockworklabs/spacetime';
 
   function isPortOpen(port) {
@@ -399,7 +400,7 @@ function spacetimePlugin() {
           ].join(' '), { stdio: 'pipe' });
         } else {
           console.log('  Starting SpacetimeDB server...');
-          serverProc = spawn(SPACETIME_BIN, ['start'], {
+          serverProc = spawn(SPACETIME_BIN, ['start', '--data-dir', DATA_DIR], {
             stdio: ['ignore', 'pipe', 'pipe'],
           });
           serverProc.stderr.on('data', (d) => {

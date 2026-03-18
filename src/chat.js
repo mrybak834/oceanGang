@@ -2,6 +2,7 @@
 // Chat window next to compass + 3D speech bubbles above boats.
 
 import * as THREE from 'three';
+import { getPlayerName } from './multiplayer.js';
 
 const MAX_MESSAGES = 50;
 const BUBBLE_DURATION = 6000; // ms a bubble stays visible
@@ -70,9 +71,9 @@ export function initChat(conn, identity, sceneRef, cameraRef, boat, remotePlayer
 
   // Subscribe to chat messages
   conn.db.chatMessage.onInsert((_ctx, msg) => {
-    const idShort = msg.sender.toHexString().substring(0, 8);
     const isSelf = msg.sender.isEqual(myIdentity);
-    addMessage(idShort, msg.text, isSelf);
+    const name = isSelf ? 'You' : getPlayerName(msg.sender.toHexString());
+    addMessage(name, msg.text, isSelf);
     spawnBubble(msg.sender, msg.text);
   });
 }

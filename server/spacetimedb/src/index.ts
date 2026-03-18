@@ -1,12 +1,39 @@
 // ─── SpacetimeDB Server Module: Ocean Gang Multiplayer ───
 import { schema, table, t } from 'spacetimedb/server';
 
+// ── Random name generator ──
+const ADJECTIVES = [
+  'Bold', 'Salty', 'Swift', 'Rusty', 'Crimson', 'Golden', 'Iron', 'Storm',
+  'Shadow', 'Dread', 'Lucky', 'Copper', 'Silver', 'Scarlet', 'Midnight',
+  'Rogue', 'Ancient', 'Jolly', 'Dusty', 'Wicked', 'Fierce', 'Silent',
+  'Broken', 'Cursed', 'Wild', 'Ghost', 'Thunder', 'Savage', 'Foggy', 'Dark',
+];
+const NOUNS = [
+  'Beard', 'Hook', 'Bones', 'Tide', 'Skull', 'Anchor', 'Compass', 'Barrel',
+  'Cannon', 'Crow', 'Dagger', 'Fin', 'Gull', 'Helm', 'Kraken', 'Plank',
+  'Reef', 'Sail', 'Shark', 'Wave', 'Whale', 'Pearl', 'Cutlass', 'Parrot',
+  'Barnacle', 'Doubloon', 'Mast', 'Rum', 'Serpent', 'Trident',
+];
+
+function generateName(identity: { data: Uint8Array } | any): string {
+  // Use identity bytes as seed for deterministic but random-looking name
+  let hash = 0;
+  const hex = identity.toHexString ? identity.toHexString() : '';
+  for (let i = 0; i < hex.length; i++) {
+    hash = ((hash << 5) - hash + hex.charCodeAt(i)) | 0;
+  }
+  const adj = ADJECTIVES[Math.abs(hash) % ADJECTIVES.length];
+  const noun = NOUNS[Math.abs(hash >> 8) % NOUNS.length];
+  return `${adj} ${noun}`;
+}
+
 const spacetimedb = schema({
   // ── World state ──
   player: table(
     { public: true },
     {
       identity: t.identity().primaryKey(),
+      name: t.string(),
       x: t.f32(),
       y: t.f32(),
       z: t.f32(),
@@ -77,6 +104,7 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
   } else {
     ctx.db.player.insert({
       identity: ctx.sender,
+      name: generateName(ctx.sender),
       x: 0, y: 0, z: 0,
       rx: 0, ry: 0, rz: 0,
       online: true,

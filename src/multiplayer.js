@@ -17,6 +17,7 @@ let myIdentity = null;
 let initialized = false;
 let lastSendTime = 0;
 let stats = { status: 'Disconnected', updatesSent: 0, updatesReceived: 0, connectedAt: null };
+let myName = null;
 
 const SAIL_COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f39c12',
@@ -109,7 +110,15 @@ export async function initMultiplayer(sceneRef, boat, cameraRef) {
         // ── Subscribe ──
         conn.subscriptionBuilder()
           .onApplied(() => {
-            console.log('Multiplayer: subscription applied');
+            // Look up our name
+            for (const p of conn.db.player.iter()) {
+              if (p.identity.isEqual(myIdentity)) {
+                myName = p.name;
+                stats.name = p.name;
+                break;
+              }
+            }
+            console.log('Multiplayer: connected as', myName || stats.identity);
 
             // Seed "ship" base state if it doesn't exist yet
             seedShipBaseState(conn);
@@ -182,6 +191,18 @@ export function updateRemotePlayers(time) {
 
 export function getRemotePlayerCount() {
   return remotePlayers.size;
+}
+
+export function getMyName() {
+  return myName;
+}
+
+export function getPlayerName(identityHex) {
+  if (!connection) return identityHex?.substring(0, 8) || '??';
+  for (const p of connection.db.player.iter()) {
+    if (p.identity.toHexString() === identityHex) return p.name;
+  }
+  return identityHex?.substring(0, 8) || '??';
 }
 
 // ─── Object state API (called by editor) ───
@@ -493,7 +514,7 @@ export function createMultiplayerPanel() {
     const statusColors = { Connected: '#2ecc71', Disconnected: '#e74c3c', Error: '#e74c3c' };
     elStatus.textContent = stats.status;
     elStatus.style.color = statusColors[stats.status] || '#fff';
-    elIdentity.textContent = stats.identity || '--';
+    elIdentity.textContent = stats.name || stats.identity || '--';
 
     const total = remotePlayers.size + (initialized ? 1 : 0);
     elPlayers.textContent = total;
@@ -522,8 +543,9 @@ export function createMultiplayerPanel() {
       let html = '';
       for (const [key, remote] of remotePlayers) {
         const b = remote.boat;
+        const name = getPlayerName(key);
         html += `<div class="mp-player-row">
-          <span class="mp-player-id">${key.substring(0, 8)}</span>
+          <span class="mp-player-id">${name}</span>
           <span class="mp-player-pos">${b.position.x.toFixed(0)}, ${b.position.z.toFixed(0)}</span>
         </div>`;
       }
