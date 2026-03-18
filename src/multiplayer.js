@@ -3,6 +3,7 @@
 // Connects to a local SpacetimeDB server started automatically by the Vite plugin.
 
 import { createBoat } from './boat.js';
+import { initChat } from './chat.js';
 
 const SPACETIME_URI = 'ws://localhost:3000';
 const MODULE_NAME = 'ocean-gang';
@@ -23,7 +24,7 @@ const SAIL_COLORS = [
 ];
 let colorIndex = 0;
 
-export async function initMultiplayer(sceneRef) {
+export async function initMultiplayer(sceneRef, localBoat, cameraRef) {
   scene = sceneRef;
 
   // Import generated bindings (created by Vite plugin at startup, or stub if unavailable)
@@ -99,6 +100,9 @@ export async function initMultiplayer(sceneRef) {
           }
         });
 
+        // Init chat (registers its own onInsert callback before subscribe)
+        initChat(conn, identity, scene, cameraRef, localBoat, remotePlayers);
+
         // Now subscribe — callbacks above will fire for initial + future data
         conn.subscriptionBuilder()
           .onApplied(() => {
@@ -106,7 +110,7 @@ export async function initMultiplayer(sceneRef) {
             initialized = true;
             resolve();
           })
-          .subscribe('SELECT * FROM player WHERE online = true');
+          .subscribe(['SELECT * FROM player WHERE online = true', 'SELECT * FROM chat_message']);
       })
       .onDisconnect(() => {
         console.log('Multiplayer: disconnected');

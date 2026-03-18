@@ -15,6 +15,15 @@ const spacetimedb = schema({
       online: t.bool(),
     }
   ),
+  chatMessage: table(
+    { public: true },
+    {
+      id: t.u64().primaryKey().autoInc(),
+      sender: t.identity(),
+      text: t.string(),
+      timestamp: t.u64(),
+    }
+  ),
 });
 
 export default spacetimedb;
@@ -41,6 +50,19 @@ export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
     ctx.db.player.identity.update({ ...player, online: false });
   }
 });
+
+export const sendChat = spacetimedb.reducer(
+  { text: t.string() },
+  (ctx, { text }) => {
+    if (text.length === 0 || text.length > 200) return;
+    ctx.db.chatMessage.insert({
+      id: 0n, // auto-incremented
+      sender: ctx.sender,
+      text,
+      timestamp: BigInt(Date.now()),
+    });
+  }
+);
 
 export const updatePosition = spacetimedb.reducer(
   {

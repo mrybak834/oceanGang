@@ -17,6 +17,7 @@ import { createCompass } from './compass.js';
 import { createCreatures } from './creatures.js';
 import { createTouchControls } from './touchControls.js';
 import { initMultiplayer, sendLocalState, updateRemotePlayers, createMultiplayerPanel } from './multiplayer.js';
+import { updateChat } from './chat.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
@@ -206,7 +207,7 @@ function init() {
 
   // Multiplayer — connect and sync boats with other players
   multiplayerPanel = createMultiplayerPanel();
-  initMultiplayer(scene).catch(err => console.warn('Multiplayer init failed:', err));
+  initMultiplayer(scene, boat, camera).catch(err => console.warn('Multiplayer init failed:', err));
 }
 
 function onWindowResize() {
@@ -232,6 +233,7 @@ function animate() {
   }
   sendLocalState(boat);
   updateRemotePlayers(time);
+  updateChat();
   perfTracker.markEnd('boat');
 
   // Update water time
