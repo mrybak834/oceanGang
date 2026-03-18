@@ -16,8 +16,9 @@ import { createInstrumentRegistry } from './instruments.js';
 import { createCompass } from './compass.js';
 import { createCreatures } from './creatures.js';
 import { createTouchControls } from './touchControls.js';
-import { initMultiplayer, sendLocalState, updateRemotePlayers, createMultiplayerPanel, syncShipState, syncInitialShipState } from './multiplayer.js';
+import { initMultiplayer, sendLocalState, updateRemotePlayers, createMultiplayerPanel, updateObjectState } from './multiplayer.js';
 import { updateChat } from './chat.js';
+import { buildUnifiedState } from './objectState.js';
 
 let camera, scene, renderer;
 let water, boat, boatController, crateManager, windEffect, wakeSystem;
@@ -210,7 +211,6 @@ function init() {
   // Multiplayer — connect and sync boats with other players
   multiplayerPanel = createMultiplayerPanel();
   initMultiplayer(scene, boat, camera)
-    .then(() => syncInitialShipState())
     .catch(err => console.warn('Multiplayer init failed:', err));
 }
 
@@ -244,7 +244,10 @@ function animate() {
     const now = performance.now();
     if (now - lastEditorSyncTime > EDITOR_SYNC_INTERVAL) {
       lastEditorSyncTime = now;
-      syncShipState(shipEditor.buildEditorState(), shipEditor.buildDesignerState());
+      const editableObjects = boat?.userData?.editableObjects;
+      if (editableObjects) {
+        updateObjectState('ship', buildUnifiedState(editableObjects));
+      }
     }
   }
   perfTracker.markEnd('boat');
@@ -615,18 +618,12 @@ function initShipEditor() {
   }
 
   async function saveEditorState() {
-    const state = buildEditorState();
-    try { localStorage.setItem('oceanGang_editor_v1', JSON.stringify(state)); } catch {}
-    // Sync to multiplayer
-    syncShipState(state, buildDesignerState());
-    try {
-      const res = await fetch('/__save_editor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state),
-      });
-      return (await res.json()).ok;
-    } catch { return true; }
+    // Save to SpacetimeDB (source of truth)
+    const editableObjects = boat?.userData?.editableObjects;
+    if (editableObjects) {
+      updateObjectState('ship', buildUnifiedState(editableObjects));
+    }
+    return true;
   }
 
   editorSaveBtn.addEventListener('click', async () => {
@@ -1104,20 +1101,12 @@ function initShipEditor() {
   }
 
   async function saveDesignerState() {
-    const state = buildDesignerState();
-    // Always save to localStorage (works everywhere)
-    try { localStorage.setItem('oceanGang_designer_v1', JSON.stringify(state)); } catch {}
-    // Sync to multiplayer
-    syncShipState(buildEditorState(), state);
-    // Also try Vite dev endpoint to write to public/designerState.json
-    try {
-      const res = await fetch('/__save_designer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state),
-      });
-      return (await res.json()).ok;
-    } catch { return true; /* localStorage save succeeded */ }
+    // Save to SpacetimeDB (source of truth)
+    const editableObjects = boat?.userData?.editableObjects;
+    if (editableObjects) {
+      updateObjectState('ship', buildUnifiedState(editableObjects));
+    }
+    return true;
   }
 
   // Highlight selected child in preview

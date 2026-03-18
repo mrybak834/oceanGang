@@ -1041,26 +1041,7 @@ export function createBoat(scene) {
     }
   }
 
-  fetch('./editorState.json')
-    .then(r => r.ok ? r.json() : null)
-    .then(state => {
-      if (state && Object.keys(state).length) {
-        applyEditorState(state);
-      } else {
-        try {
-          const raw = localStorage.getItem('oceanGang_editor_v1');
-          if (raw) applyEditorState(JSON.parse(raw));
-        } catch {}
-      }
-    })
-    .catch(() => {
-      try {
-        const raw = localStorage.getItem('oceanGang_editor_v1');
-        if (raw) applyEditorState(JSON.parse(raw));
-      } catch {}
-    });
-
-  // Apply designer state (child part positions within objects)
+  // Designer state applies child part positions within objects
   function applyDesignerState(state) {
     if (!state || typeof state !== 'object') return;
     for (const obj of editableObjects) {
@@ -1078,26 +1059,6 @@ export function createBoat(scene) {
       });
     }
   }
-
-  fetch('./designerState.json')
-    .then(r => r.ok ? r.json() : null)
-    .then(state => {
-      if (state && Object.keys(state).length) {
-        applyDesignerState(state);
-      } else {
-        // Fallback to localStorage
-        try {
-          const raw = localStorage.getItem('oceanGang_designer_v1');
-          if (raw) applyDesignerState(JSON.parse(raw));
-        } catch {}
-      }
-    })
-    .catch(() => {
-      try {
-        const raw = localStorage.getItem('oceanGang_designer_v1');
-        if (raw) applyDesignerState(JSON.parse(raw));
-      } catch {}
-    });
 
   // Expose apply functions for multiplayer sync
   boat.userData.applyEditorState = applyEditorState;

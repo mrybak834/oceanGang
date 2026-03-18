@@ -289,67 +289,7 @@ Rules: ONLY JSON, same scale as original, creative, pirate ship colors, radians 
   };
 }
 
-function editorSavePlugin() {
-  return {
-    name: 'editor-save',
-    configureServer(server) {
-      server.middlewares.use('/__save_editor', (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end();
-          return;
-        }
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-          try {
-            const data = JSON.parse(body);
-            const filePath = path.resolve('public/editorState.json');
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf-8');
-            console.log(`\n  Editor state saved → ${filePath}\n`);
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ ok: true, path: filePath }));
-          } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ ok: false, error: err.message }));
-          }
-        });
-      });
-    },
-  };
-}
-
-function designerSavePlugin() {
-  return {
-    name: 'designer-save',
-    configureServer(server) {
-      server.middlewares.use('/__save_designer', (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end();
-          return;
-        }
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-          try {
-            const data = JSON.parse(body);
-            const filePath = path.resolve('public/designerState.json');
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf-8');
-            console.log(`\n  Designer state saved → ${filePath}\n`);
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ ok: true, path: filePath }));
-          } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ ok: false, error: err.message }));
-          }
-        });
-      });
-    },
-  };
-}
+// editorSavePlugin and designerSavePlugin removed — state now lives in SpacetimeDB
 
 // ─── SpacetimeDB Plugin ───
 // Automatically starts a local SpacetimeDB server (via CLI or Docker), publishes
@@ -531,7 +471,7 @@ function spacetimePlugin() {
 
 export default defineConfig({
   base: '/oceanGang/',
-  plugins: [spacetimePlugin(), perfReportPlugin(), musicSceneSavePlugin(), githubProxyPlugin(), redesignPlugin(), editorSavePlugin(), designerSavePlugin(), cloudflareTunnel()],
+  plugins: [spacetimePlugin(), perfReportPlugin(), musicSceneSavePlugin(), githubProxyPlugin(), redesignPlugin(), cloudflareTunnel()],
   resolve: {
     dedupe: ['superdough', '@strudel/webaudio', '@strudel/repl'],
   },

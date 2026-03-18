@@ -1,39 +1,41 @@
 // ─── Multiplayer (SpacetimeDB) ───
-// Syncs boat positions between players so everyone can see each other's ships.
-// Connects to a local SpacetimeDB server started automatically by the Vite plugin.
+// Syncs boat positions, object state, and presets between players.
 
 import { createBoat } from './boat.js';
 import { initChat } from './chat.js';
+import { buildUnifiedState, applyUnifiedState, splitState } from './objectState.js';
 
 const SPACETIME_URI = 'ws://localhost:3000';
 const MODULE_NAME = 'ocean-gang';
 const SEND_INTERVAL = 50; // ms between position updates (~20Hz)
 
-const remotePlayers = new Map(); // identity hex string → { boat, pos }
+const remotePlayers = new Map(); // identity hex → { boat, target, lastObjectState }
 let scene = null;
+let localBoat = null;
 let connection = null;
 let myIdentity = null;
 let initialized = false;
 let lastSendTime = 0;
 let stats = { status: 'Disconnected', updatesSent: 0, updatesReceived: 0, connectedAt: null };
 
-// Sail colors for remote players (cycle through these)
 const SAIL_COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f39c12',
   '#9b59b6', '#1abc9c', '#e67e22', '#e91e63',
 ];
 let colorIndex = 0;
 
-export async function initMultiplayer(sceneRef, localBoat, cameraRef) {
-  scene = sceneRef;
+// ─── Init ───
 
-  // Import generated bindings (created by Vite plugin at startup, or stub if unavailable)
+export async function initMultiplayer(sceneRef, boat, cameraRef) {
+  scene = sceneRef;
+  localBoat = boat;
+
   let DbConnection;
   try {
     const bindings = await import('./module_bindings/index.ts');
     DbConnection = bindings.DbConnection;
     if (!DbConnection) {
-      console.warn('Multiplayer: SpacetimeDB not configured. Run with SpacetimeDB to enable multiplayer.');
+      console.warn('Multiplayer: SpacetimeDB not configured.');
       return;
     }
   } catch (err) {
@@ -54,19 +56,14 @@ export async function initMultiplayer(sceneRef, localBoat, cameraRef) {
         stats.identity = identity.toHexString().substring(0, 8);
         console.log('Multiplayer: connected as', stats.identity);
 
-        // Subscribe to all online players
-        // Register table callbacks BEFORE subscribing
-        // so we catch all events including initial subscription results
+        // ── Player callbacks ──
 
-        // New player appears
         conn.db.player.onInsert((_ctx, player) => {
-          console.log('Multiplayer: onInsert', player.identity.toHexString().substring(0, 8), 'online:', player.online);
           if (player.identity.isEqual(myIdentity)) return;
           if (!player.online) return;
-          spawnRemoteBoat(player);
+          spawnRemoteBoat(conn, player);
         });
 
-        // Player position updated
         conn.db.player.onUpdate((_ctx, _old, player) => {
           if (player.identity.isEqual(myIdentity)) return;
           stats.updatesReceived++;
@@ -74,28 +71,19 @@ export async function initMultiplayer(sceneRef, localBoat, cameraRef) {
           const remote = remotePlayers.get(key);
           if (remote) {
             if (!player.online) {
-              // Player went offline
               scene.remove(remote.boat);
               remotePlayers.delete(key);
             } else {
-              // Update target position for interpolation
               remote.target = {
                 x: player.x, y: player.y, z: player.z,
                 rx: player.rx, ry: player.ry, rz: player.rz,
               };
-              // Apply ship customization if it changed (lerped, not instant)
-              if (player.shipState && player.shipState !== remote.lastShipState) {
-                applyShipState(remote.boat, player.shipState, false);
-                remote.lastShipState = player.shipState;
-              }
             }
           } else if (player.online) {
-            // Player came back online
-            spawnRemoteBoat(player);
+            spawnRemoteBoat(conn, player);
           }
         });
 
-        // Player removed from subscription (went offline)
         conn.db.player.onDelete((_ctx, player) => {
           const key = player.identity.toHexString();
           const remote = remotePlayers.get(key);
@@ -105,17 +93,40 @@ export async function initMultiplayer(sceneRef, localBoat, cameraRef) {
           }
         });
 
-        // Init chat (registers its own onInsert callback before subscribe)
-        initChat(conn, identity, scene, cameraRef, localBoat, remotePlayers);
+        // ── Object state callbacks (for live editing sync) ──
 
-        // Now subscribe — callbacks above will fire for initial + future data
+        conn.db.playerObject.onInsert((_ctx, po) => {
+          applyPlayerObjectToBoat(po);
+        });
+
+        conn.db.playerObject.onUpdate((_ctx, _old, po) => {
+          applyPlayerObjectToBoat(po);
+        });
+
+        // ── Chat ──
+        initChat(conn, identity, scene, cameraRef, boat, remotePlayers);
+
+        // ── Subscribe ──
         conn.subscriptionBuilder()
           .onApplied(() => {
-            console.log('Multiplayer: subscription applied, players in DB:', conn.db.player.count());
+            console.log('Multiplayer: subscription applied');
+
+            // Seed "ship" base state if it doesn't exist yet
+            seedShipBaseState(conn);
+
+            // Apply our own saved state from DB if it exists
+            applyLocalPlayerState(conn);
+
             initialized = true;
             resolve();
           })
-          .subscribe(['SELECT * FROM player WHERE online = true', 'SELECT * FROM chat_message']);
+          .subscribe([
+            'SELECT * FROM player WHERE online = true',
+            'SELECT * FROM chat_message',
+            'SELECT * FROM game_object',
+            'SELECT * FROM player_object',
+            'SELECT * FROM player_preset',
+          ]);
       })
       .onDisconnect(() => {
         console.log('Multiplayer: disconnected');
@@ -125,33 +136,29 @@ export async function initMultiplayer(sceneRef, localBoat, cameraRef) {
       .onConnectError((_ctx, err) => {
         console.warn('Multiplayer: connection failed.', err);
         stats.status = 'Error';
-        resolve(); // Don't block game startup
+        resolve();
       })
       .build();
   });
 }
 
-// Call each frame after updating local boat physics
+// ─── Position sync ───
+
 export function sendLocalState(boat) {
   if (!initialized || !connection) return;
-
-  // Throttle sends to ~20Hz
   const now = performance.now();
   if (now - lastSendTime < SEND_INTERVAL) return;
   lastSendTime = now;
 
   connection.reducers.updatePosition({
-    x: boat.position.x,
-    y: boat.position.y,
-    z: boat.position.z,
-    rx: boat.rotation.x,
-    ry: boat.rotation.y,
-    rz: boat.rotation.z,
+    x: boat.position.x, y: boat.position.y, z: boat.position.z,
+    rx: boat.rotation.x, ry: boat.rotation.y, rz: boat.rotation.z,
   });
   stats.updatesSent++;
 }
 
-// Call each frame to interpolate remote boats toward their latest state
+// ─── Remote player interpolation ───
+
 export function updateRemotePlayers(time) {
   if (!initialized) return;
 
@@ -169,7 +176,7 @@ export function updateRemotePlayers(time) {
     b.rotation.z += (t.rz - b.rotation.z) * lerp;
 
     animateRemoteSails(b, time);
-    lerpShipState(b);
+    lerpShipTargets(b);
   }
 }
 
@@ -177,149 +184,114 @@ export function getRemotePlayerCount() {
   return remotePlayers.size;
 }
 
-// Call this when the local player saves their editor/designer state
-export function syncShipState(editorState, designerState) {
+// ─── Object state API (called by editor) ───
+
+// Update the live state of an object (e.g. "ship") in SpacetimeDB
+export function updateObjectState(objectId, unifiedState) {
   if (!initialized || !connection) return;
-  const payload = JSON.stringify({ editor: editorState, designer: designerState });
-  connection.reducers.updateShipState({ shipState: payload });
+  connection.reducers.updateLiveState({
+    objectId,
+    liveState: JSON.stringify(unifiedState),
+  });
 }
 
-// Send initial ship state on connect (so others see your custom ship)
-export function syncInitialShipState() {
+// Restore object to base default
+export function restoreObjectDefault(objectId) {
   if (!initialized || !connection) return;
-  try {
-    const editor = JSON.parse(localStorage.getItem('oceanGang_editor_v1') || 'null');
-    const designer = JSON.parse(localStorage.getItem('oceanGang_designer_v1') || 'null');
-    if (editor || designer) {
-      const payload = JSON.stringify({ editor, designer });
-      connection.reducers.updateShipState({ shipState: payload });
+  connection.reducers.restoreDefault({ objectId });
+}
+
+// Save current state as a named preset
+export function saveObjectPreset(objectId, name) {
+  if (!initialized || !connection) return;
+  const editableObjects = localBoat?.userData?.editableObjects;
+  if (!editableObjects) return;
+  const state = JSON.stringify(buildUnifiedState(editableObjects));
+  connection.reducers.savePreset({ objectId, name, state });
+}
+
+// Load a saved preset
+export function loadObjectPreset(presetId) {
+  if (!initialized || !connection) return;
+  connection.reducers.loadPreset({ presetId });
+}
+
+// Delete a saved preset
+export function deleteObjectPreset(presetId) {
+  if (!initialized || !connection) return;
+  connection.reducers.deletePreset({ presetId });
+}
+
+// Get all presets for an object type (from local cache)
+export function getPresets(objectId) {
+  if (!initialized || !connection) return [];
+  const presets = [];
+  for (const p of connection.db.playerPreset.iter()) {
+    if (p.owner.isEqual(myIdentity) && p.objectId === objectId) {
+      presets.push({ id: p.id, name: p.name, state: p.state });
     }
+  }
+  return presets;
+}
+
+// ─── Internal helpers ───
+
+function seedShipBaseState(conn) {
+  // Only seed if "ship" doesn't exist yet
+  let exists = false;
+  for (const go of conn.db.gameObject.iter()) {
+    if (go.id === 'ship') { exists = true; break; }
+  }
+  if (exists) return;
+
+  // Build base state from the local boat's current (default) positions
+  const editableObjects = localBoat?.userData?.editableObjects;
+  if (!editableObjects) return;
+  const baseState = JSON.stringify(buildUnifiedState(editableObjects));
+  conn.reducers.seedGameObject({ id: 'ship', category: 'vessel', baseState });
+  console.log('Multiplayer: seeded "ship" base state');
+}
+
+function applyLocalPlayerState(conn) {
+  // Find our playerObject for "ship"
+  for (const po of conn.db.playerObject.iter()) {
+    if (po.owner.isEqual(myIdentity) && po.objectId === 'ship') {
+      try {
+        const unified = JSON.parse(po.liveState);
+        applyUnifiedState(localBoat, unified);
+        console.log('Multiplayer: applied saved ship state');
+      } catch {}
+      return;
+    }
+  }
+  // No saved state — first time player, they get code defaults
+}
+
+function applyPlayerObjectToBoat(po) {
+  if (po.objectId !== 'ship') return;
+
+  // Local player — apply to own boat
+  if (po.owner.isEqual(myIdentity)) {
+    try {
+      const unified = JSON.parse(po.liveState);
+      applyUnifiedState(localBoat, unified);
+    } catch {}
+    return;
+  }
+
+  // Remote player — set lerp targets
+  const key = po.owner.toHexString();
+  const remote = remotePlayers.get(key);
+  if (!remote) return;
+
+  try {
+    const unified = JSON.parse(po.liveState);
+    const { editor, designer } = splitState(unified);
+    setShipTargets(remote.boat, editor, designer);
   } catch {}
 }
 
-// ─── Multiplayer Info Panel ───
-
-export function createMultiplayerPanel() {
-  const panel = document.createElement('div');
-  panel.className = 'mp-panel mp-hidden';
-
-  panel.innerHTML = `
-    <div class="mp-title">Multiplayer</div>
-    <div class="mp-grid">
-      <span class="mp-label">Status</span><span class="mp-val" id="mp-status">--</span>
-      <span class="mp-label">Identity</span><span class="mp-val" id="mp-identity">--</span>
-      <span class="mp-label">Players</span><span class="mp-val" id="mp-players">--</span>
-      <span class="mp-label">Uptime</span><span class="mp-val" id="mp-uptime">--</span>
-    </div>
-    <div class="mp-section">Network</div>
-    <div class="mp-grid">
-      <span class="mp-label">Send rate</span><span class="mp-val" id="mp-sendrate">--</span>
-      <span class="mp-label">Recv rate</span><span class="mp-val" id="mp-recvrate">--</span>
-      <span class="mp-label">Total sent</span><span class="mp-val" id="mp-sent">--</span>
-      <span class="mp-label">Total recv</span><span class="mp-val" id="mp-recv">--</span>
-    </div>
-    <div class="mp-section">Remote Players</div>
-    <div id="mp-player-list" class="mp-player-list"></div>
-  `;
-
-  document.body.appendChild(panel);
-  panel.addEventListener('keydown', e => e.stopPropagation());
-  panel.addEventListener('keyup', e => e.stopPropagation());
-  panel.addEventListener('mousedown', e => e.stopPropagation());
-  panel.addEventListener('wheel', e => e.stopPropagation());
-
-  const elStatus = panel.querySelector('#mp-status');
-  const elIdentity = panel.querySelector('#mp-identity');
-  const elPlayers = panel.querySelector('#mp-players');
-  const elUptime = panel.querySelector('#mp-uptime');
-  const elSendRate = panel.querySelector('#mp-sendrate');
-  const elRecvRate = panel.querySelector('#mp-recvrate');
-  const elSent = panel.querySelector('#mp-sent');
-  const elRecv = panel.querySelector('#mp-recv');
-  const elPlayerList = panel.querySelector('#mp-player-list');
-
-  let visible = false;
-  let lastSent = 0;
-  let lastRecv = 0;
-  let lastTick = Date.now();
-
-  function toggle() {
-    visible = !visible;
-    panel.classList.toggle('mp-hidden', !visible);
-    return visible;
-  }
-
-  function update() {
-    if (!visible) return;
-
-    const now = Date.now();
-    const dt = (now - lastTick) / 1000;
-    lastTick = now;
-
-    // Status
-    const statusColors = { Connected: '#2ecc71', Disconnected: '#e74c3c', Error: '#e74c3c' };
-    elStatus.textContent = stats.status;
-    elStatus.style.color = statusColors[stats.status] || '#fff';
-
-    // Identity
-    elIdentity.textContent = stats.identity || '--';
-
-    // Players (including self)
-    const total = remotePlayers.size + (initialized ? 1 : 0);
-    elPlayers.textContent = total;
-
-    // Uptime
-    if (stats.connectedAt) {
-      const secs = Math.floor((now - stats.connectedAt) / 1000);
-      const m = Math.floor(secs / 60);
-      const s = secs % 60;
-      elUptime.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-    } else {
-      elUptime.textContent = '--';
-    }
-
-    // Rates
-    if (dt > 0) {
-      const sendRate = (stats.updatesSent - lastSent) / dt;
-      const recvRate = (stats.updatesReceived - lastRecv) / dt;
-      elSendRate.textContent = sendRate.toFixed(0) + '/s';
-      elRecvRate.textContent = recvRate.toFixed(0) + '/s';
-    }
-    lastSent = stats.updatesSent;
-    lastRecv = stats.updatesReceived;
-
-    // Totals
-    elSent.textContent = stats.updatesSent.toLocaleString();
-    elRecv.textContent = stats.updatesReceived.toLocaleString();
-
-    // Player list
-    if (remotePlayers.size === 0) {
-      elPlayerList.textContent = 'No other players';
-    } else {
-      let html = '';
-      for (const [key, remote] of remotePlayers) {
-        const b = remote.boat;
-        const dist = scene ? Math.sqrt(
-          (b.position.x) ** 2 + (b.position.z) ** 2
-        ) : 0;
-        html += `<div class="mp-player-row">
-          <span class="mp-player-id">${key.substring(0, 8)}</span>
-          <span class="mp-player-pos">${b.position.x.toFixed(0)}, ${b.position.z.toFixed(0)}</span>
-        </div>`;
-      }
-      elPlayerList.innerHTML = html;
-    }
-  }
-
-  // Update at 2Hz when visible
-  setInterval(update, 500);
-
-  return { toggle };
-}
-
-// ─── Helpers ───
-
-function spawnRemoteBoat(player) {
+function spawnRemoteBoat(conn, player) {
   const key = player.identity.toHexString();
   if (remotePlayers.has(key)) return;
 
@@ -327,14 +299,18 @@ function spawnRemoteBoat(player) {
   boat.position.set(player.x, player.y, player.z);
   boat.rotation.set(player.rx, player.ry, player.rz);
 
-  // Give each remote player a unique sail color
   const color = SAIL_COLORS[colorIndex % SAIL_COLORS.length];
   colorIndex++;
   tintSails(boat, color);
 
-  // Apply their ship customization if available (instant on first spawn)
-  if (player.shipState) {
-    applyShipState(boat, player.shipState, true);
+  // Apply their saved object state if available
+  for (const po of conn.db.playerObject.iter()) {
+    if (po.owner.isEqual(player.identity) && po.objectId === 'ship') {
+      try {
+        applyUnifiedState(boat, JSON.parse(po.liveState));
+      } catch {}
+      break;
+    }
   }
 
   remotePlayers.set(key, {
@@ -346,61 +322,48 @@ function spawnRemoteBoat(player) {
   });
 }
 
-// Parse ship state and store targets for smooth interpolation
-function applyShipState(boat, shipStateJson, instant) {
-  try {
-    const { editor, designer } = JSON.parse(shipStateJson);
-    if (instant) {
-      // First load — snap directly
-      if (editor && boat.userData.applyEditorState) boat.userData.applyEditorState(editor);
-      if (designer && boat.userData.applyDesignerState) boat.userData.applyDesignerState(designer);
-      return;
-    }
-    // Store targets for lerping
-    if (!boat.userData._shipTargets) boat.userData._shipTargets = {};
-    const targets = boat.userData._shipTargets;
-    const editableObjects = boat.userData.editableObjects || [];
+// Store lerp targets for smooth remote object state updates
+function setShipTargets(boat, editor, designer) {
+  if (!boat.userData._shipTargets) boat.userData._shipTargets = {};
+  const targets = boat.userData._shipTargets;
+  const editableObjects = boat.userData.editableObjects || [];
 
-    if (editor) {
-      for (const obj of editableObjects) {
-        const pos = editor[obj.name];
-        if (pos) {
-          if (!targets[obj.name]) targets[obj.name] = {};
-          targets[obj.name].pos = pos;
-        }
-      }
-    }
-
-    if (designer) {
-      for (const obj of editableObjects) {
-        const objState = designer[obj.name];
-        if (!objState) continue;
+  if (editor) {
+    for (const obj of editableObjects) {
+      const pos = editor[obj.name];
+      if (pos) {
         if (!targets[obj.name]) targets[obj.name] = {};
-        targets[obj.name].children = objState;
+        targets[obj.name].pos = pos;
       }
     }
-  } catch {}
+  }
+
+  if (designer) {
+    for (const obj of editableObjects) {
+      const objState = designer[obj.name];
+      if (!objState) continue;
+      if (!targets[obj.name]) targets[obj.name] = {};
+      targets[obj.name].children = objState;
+    }
+  }
 }
 
-// Lerp editable objects toward their target positions each frame
-function lerpShipState(boat) {
+function lerpShipTargets(boat) {
   const targets = boat.userData._shipTargets;
   if (!targets) return;
   const editableObjects = boat.userData.editableObjects || [];
-  const t = 0.2; // smooth factor
+  const t = 0.2;
 
   for (const obj of editableObjects) {
     const tgt = targets[obj.name];
     if (!tgt) continue;
 
-    // Lerp object position
     if (tgt.pos) {
       obj.position.x += (tgt.pos.x - obj.position.x) * t;
       obj.position.y += (tgt.pos.y - obj.position.y) * t;
       obj.position.z += (tgt.pos.z - obj.position.z) * t;
     }
 
-    // Lerp child positions
     if (tgt.children) {
       let idx = 0;
       obj.traverse((child) => {
@@ -467,4 +430,107 @@ function animateRemoteSails(boat, time) {
   if (boat.userData.flag) {
     boat.userData.flag.rotation.y = -Math.PI / 2 + Math.sin(time * 4) * 0.12;
   }
+}
+
+// ─── Multiplayer Info Panel ───
+
+export function createMultiplayerPanel() {
+  const panel = document.createElement('div');
+  panel.className = 'mp-panel mp-hidden';
+
+  panel.innerHTML = `
+    <div class="mp-title">Multiplayer</div>
+    <div class="mp-grid">
+      <span class="mp-label">Status</span><span class="mp-val" id="mp-status">--</span>
+      <span class="mp-label">Identity</span><span class="mp-val" id="mp-identity">--</span>
+      <span class="mp-label">Players</span><span class="mp-val" id="mp-players">--</span>
+      <span class="mp-label">Uptime</span><span class="mp-val" id="mp-uptime">--</span>
+    </div>
+    <div class="mp-section">Network</div>
+    <div class="mp-grid">
+      <span class="mp-label">Send rate</span><span class="mp-val" id="mp-sendrate">--</span>
+      <span class="mp-label">Recv rate</span><span class="mp-val" id="mp-recvrate">--</span>
+      <span class="mp-label">Total sent</span><span class="mp-val" id="mp-sent">--</span>
+      <span class="mp-label">Total recv</span><span class="mp-val" id="mp-recv">--</span>
+    </div>
+    <div class="mp-section">Remote Players</div>
+    <div id="mp-player-list" class="mp-player-list"></div>
+  `;
+
+  document.body.appendChild(panel);
+  panel.addEventListener('keydown', e => e.stopPropagation());
+  panel.addEventListener('keyup', e => e.stopPropagation());
+  panel.addEventListener('mousedown', e => e.stopPropagation());
+  panel.addEventListener('wheel', e => e.stopPropagation());
+
+  const elStatus = panel.querySelector('#mp-status');
+  const elIdentity = panel.querySelector('#mp-identity');
+  const elPlayers = panel.querySelector('#mp-players');
+  const elUptime = panel.querySelector('#mp-uptime');
+  const elSendRate = panel.querySelector('#mp-sendrate');
+  const elRecvRate = panel.querySelector('#mp-recvrate');
+  const elSent = panel.querySelector('#mp-sent');
+  const elRecv = panel.querySelector('#mp-recv');
+  const elPlayerList = panel.querySelector('#mp-player-list');
+
+  let visible = false;
+  let lastSent = 0;
+  let lastRecv = 0;
+  let lastTick = Date.now();
+
+  function toggle() {
+    visible = !visible;
+    panel.classList.toggle('mp-hidden', !visible);
+    return visible;
+  }
+
+  function update() {
+    if (!visible) return;
+    const now = Date.now();
+    const dt = (now - lastTick) / 1000;
+    lastTick = now;
+
+    const statusColors = { Connected: '#2ecc71', Disconnected: '#e74c3c', Error: '#e74c3c' };
+    elStatus.textContent = stats.status;
+    elStatus.style.color = statusColors[stats.status] || '#fff';
+    elIdentity.textContent = stats.identity || '--';
+
+    const total = remotePlayers.size + (initialized ? 1 : 0);
+    elPlayers.textContent = total;
+
+    if (stats.connectedAt) {
+      const secs = Math.floor((now - stats.connectedAt) / 1000);
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      elUptime.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    } else {
+      elUptime.textContent = '--';
+    }
+
+    if (dt > 0) {
+      elSendRate.textContent = ((stats.updatesSent - lastSent) / dt).toFixed(0) + '/s';
+      elRecvRate.textContent = ((stats.updatesReceived - lastRecv) / dt).toFixed(0) + '/s';
+    }
+    lastSent = stats.updatesSent;
+    lastRecv = stats.updatesReceived;
+    elSent.textContent = stats.updatesSent.toLocaleString();
+    elRecv.textContent = stats.updatesReceived.toLocaleString();
+
+    if (remotePlayers.size === 0) {
+      elPlayerList.textContent = 'No other players';
+    } else {
+      let html = '';
+      for (const [key, remote] of remotePlayers) {
+        const b = remote.boat;
+        html += `<div class="mp-player-row">
+          <span class="mp-player-id">${key.substring(0, 8)}</span>
+          <span class="mp-player-pos">${b.position.x.toFixed(0)}, ${b.position.z.toFixed(0)}</span>
+        </div>`;
+      }
+      elPlayerList.innerHTML = html;
+    }
+  }
+
+  setInterval(update, 500);
+  return { toggle };
 }
