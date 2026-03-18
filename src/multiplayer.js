@@ -5,7 +5,13 @@ import { createBoat } from './boat.js';
 import { initChat } from './chat.js';
 import { buildUnifiedState, applyUnifiedState, splitState } from './objectState.js';
 
-const SPACETIME_URI = 'ws://localhost:3000';
+// Derive WS URI from current page origin so it works through Cloudflare tunnel.
+// Trailing slash is required — the SDK uses `new URL('v1/...', base)` which
+// drops the last path segment if it doesn't end with '/'.
+const SPACETIME_URI = (() => {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${location.host}/stdb/`;
+})();
 const MODULE_NAME = 'ocean-gang';
 const SEND_INTERVAL = 50; // ms between position updates (~20Hz)
 

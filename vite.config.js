@@ -473,6 +473,15 @@ function spacetimePlugin() {
 export default defineConfig({
   base: '/oceanGang/',
   plugins: [spacetimePlugin(), perfReportPlugin(), musicSceneSavePlugin(), githubProxyPlugin(), redesignPlugin(), cloudflareTunnel()],
+  server: {
+    proxy: {
+      '/stdb': {
+        target: 'http://localhost:3000',
+        ws: true,
+        rewrite: (path) => path.replace(/^\/stdb/, ''),
+      },
+    },
+  },
   resolve: {
     dedupe: ['superdough', '@strudel/webaudio', '@strudel/repl'],
   },
