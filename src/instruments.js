@@ -1,4 +1,4 @@
-import { parseStrudelPatch } from './patchParser.js';
+import { parseStrudelPatch, buildGatedCode } from './patchParser.js';
 
 const STORAGE_KEY = 'oceanGang_instruments_v1';
 
@@ -63,8 +63,6 @@ export function createInstrumentRegistry(scenes) {
     }
   }
 
-  Object.keys(sceneCodes).forEach((sceneName) => parseScene(sceneName));
-  Object.keys(catalog).forEach((sceneName) => autoUnlockBase(sceneName));
   load();
   Object.keys(sceneCodes).forEach((sceneName) => {
     parseScene(sceneName);
@@ -77,6 +75,17 @@ export function createInstrumentRegistry(scenes) {
     },
     getSceneCode(sceneName) {
       return sceneCodes[sceneName] || '';
+    },
+    // Code that should actually play: locked layers stripped out.
+    // Pass codeOverride to gate an edited/variation draft instead of the
+    // registry's master copy.
+    buildSceneCode(sceneName, codeOverride) {
+      const code = typeof codeOverride === 'string' ? codeOverride : sceneCodes[sceneName] || '';
+      return buildGatedCode(code, (varName) => api.isUnlocked(sceneName, varName));
+    },
+    countUnlocked(sceneName) {
+      const instruments = catalog[sceneName] || [];
+      return instruments.filter((inst) => unlocked.has(`${sceneName}::${inst.varName}`)).length;
     },
     getSceneNames() {
       return Object.keys(catalog);

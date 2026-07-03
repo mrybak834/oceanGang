@@ -1068,6 +1068,10 @@ export function createBoat(scene) {
   return boat;
 }
 
+// Scratch vectors for the per-frame movement math — avoids two allocations/frame
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+
 export function createBoatController() {
   const keys = {};
 
@@ -1176,11 +1180,11 @@ export function createBoatController() {
     lateralSpeed -= lateralDrag * lateralSpeed * Math.abs(lateralSpeed) * dt;
     lateralSpeed *= Math.max(0, 1 - 2.0 * dt); // extra linear damping
 
-    // Apply movement in boat's local axes
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(boat.quaternion);
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(boat.quaternion);
-    boat.position.addScaledVector(forward, speed * dt);
-    boat.position.addScaledVector(right, lateralSpeed * dt);
+    // Apply movement in boat's local axes (scratch vectors — this runs every frame)
+    _forward.set(0, 0, -1).applyQuaternion(boat.quaternion);
+    _right.set(1, 0, 0).applyQuaternion(boat.quaternion);
+    boat.position.addScaledVector(_forward, speed * dt);
+    boat.position.addScaledVector(_right, lateralSpeed * dt);
 
     // --- Visual heel (lean into turn) ---
     const targetRoll = -yawRate / maxTurnRate * rollMax;

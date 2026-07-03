@@ -13,9 +13,11 @@ npm install          # Install dependencies
 npm run dev          # Vite dev server with HMR (http://localhost:5173)
 npm run build        # Production build to dist/
 npm run preview      # Preview production build
+npm test             # Vitest unit tests (parser, instrument registry)
+npm run test:watch   # Vitest in watch mode
 ```
 
-No test runner or linter is configured. Testing is manual in browser.
+Unit tests live in `tests/` and cover the pure logic (Strudel patch parser, gated-code builder, instrument registry). `vitest.config.js` is intentionally standalone — vitest must NOT load `vite.config.js`, whose plugins spawn SpacetimeDB/tunnel processes. Gameplay/rendering testing is manual in browser. No linter is configured.
 
 ## Architecture
 
@@ -34,7 +36,10 @@ Every module exports a factory function (e.g., `createBoat()`, `createOcean()`) 
 
 **Audio/UI subsystems:**
 - `shipAudio.js` — Web Audio API synthesis (hull noise, splash) tied to boat speed
-- `music.js` — Strudel live-coding editor embedded via iframe with preset scenes
+- `music.js` — music panel UI around an embedded `@strudel/repl` editor; playback is gated to unlocked instrument layers
+- `scenes.js` — the Strudel scene library (each `let` block in a scene is one instrument layer)
+- `patchParser.js` — pure functions: parse Strudel patches into instruments, auto-cost, gated-code builder, sound swap
+- `instruments.js` — instrument registry: unlock state, scene-code sync, persistence (localStorage)
 - `skySettings.js` — Slider panel for sky/ocean parameters (elevation, turbidity, water distortion)
 - `perfTracker.js` — FPS/frame time/draw calls/memory monitor; reports saved to `perf-report.json` via custom Vite plugin
 - `style.css` — All UI panel styling
@@ -55,7 +60,7 @@ WASD/Arrows = move, Shift = boost, Space = jump, M = music panel, G = sky settin
 
 ## Dependencies
 
-Only two npm packages: **three** (r183+) and **vite** (7.3). Strudel is loaded externally via iframe.
+Runtime: **three** (r183+), **@strudel/repl** + **superdough** (embedded live-coding music), **spacetimedb** (multiplayer; client bindings are generated into `src/module_bindings/` by the dev-server plugin and are gitignored — production builds load them via `import.meta.glob` and degrade to single-player when absent). Dev: **vite** (7.3), **vitest**.
 
 ## Performance Notes
 

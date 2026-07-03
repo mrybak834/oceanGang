@@ -6,7 +6,8 @@ import { createCrateManager } from './crates.js';
 import { createIslands } from './islands.js';
 import { createWindEffect } from './windEffect.js';
 import { createWakeSystem } from './wake.js';
-import { initMusicPanel, MUSIC_SCENE_SYNC_EVENT, SCENES } from './music.js';
+import { initMusicPanel, MUSIC_SCENE_SYNC_EVENT } from './music.js';
+import { SCENES } from './scenes.js';
 import { createShipAudio } from './shipAudio.js';
 import { initSkySettings } from './skySettings.js';
 import { createTradingSystem } from './trading.js';
@@ -257,9 +258,9 @@ function animate() {
 
   // Update crates
   perfTracker.markStart('crates');
-  const crateCollected = crateManager.update(boat.position, time);
+  crateManager.update(boat.position, time);
   perfTracker.markEnd('crates');
-  if (crateCollected) perfTracker.logEvent('crate_collected', { score: crateManager.getScore() });
+  // (crate_collected perf events are auto-detected by perfTracker via crateScore context)
 
   // Underwater creatures
   perfTracker.markStart('creatures');
@@ -361,20 +362,20 @@ function animate() {
   perfTracker.end(delta);
 }
 
+const _cameraTarget = new THREE.Vector3(); // scratch — updateCamera runs every frame
+
 function updateCamera(delta) {
   // Spherical offset relative to boat heading
   const dist = baseCameraDistance * zoomLevel;
   const angle = cameraFollowHeading ? cameraYaw + boat.rotation.y : cameraYaw;
-  const offset = new THREE.Vector3(
-    dist * Math.sin(angle) * Math.cos(cameraPitch),
-    dist * Math.sin(cameraPitch),
-    dist * Math.cos(angle) * Math.cos(cameraPitch)
+  _cameraTarget.set(
+    boat.position.x + dist * Math.sin(angle) * Math.cos(cameraPitch),
+    boat.position.y + dist * Math.sin(cameraPitch),
+    boat.position.z + dist * Math.cos(angle) * Math.cos(cameraPitch)
   );
 
-  const desiredPosition = boat.position.clone().add(offset);
-
   // Smooth follow
-  camera.position.lerp(desiredPosition, 1 - Math.exp(-5 * delta));
+  camera.position.lerp(_cameraTarget, 1 - Math.exp(-5 * delta));
 
   // Look at boat
   camera.lookAt(boat.position);
@@ -605,20 +606,9 @@ function initShipEditor() {
     editorSaveBtn.style.background = 'rgba(245,196,66,0.1)';
   });
 
-  function buildEditorState() {
-    const state = {};
-    for (const obj of editableObjects) {
-      state[obj.name] = {
-        x: +obj.position.x.toFixed(4),
-        y: +obj.position.y.toFixed(4),
-        z: +obj.position.z.toFixed(4),
-      };
-    }
-    return state;
-  }
-
-  async function saveEditorState() {
-    // Save to SpacetimeDB (source of truth)
+  // Both editor and designer Save buttons persist the same thing: the ship's
+  // unified state to SpacetimeDB (source of truth).
+  async function saveShipState() {
     const editableObjects = boat?.userData?.editableObjects;
     if (editableObjects) {
       updateObjectState('ship', buildUnifiedState(editableObjects));
@@ -626,27 +616,33 @@ function initShipEditor() {
     return true;
   }
 
-  editorSaveBtn.addEventListener('click', async () => {
-    editorSaveBtn.textContent = 'Saving...';
-    const ok = await saveEditorState();
-    if (ok) {
-      editorSaveBtn.textContent = 'Saved!';
-      editorSaveBtn.style.background = 'rgba(34,197,94,0.2)';
-      editorSaveBtn.style.borderColor = 'rgba(34,197,94,0.6)';
-      editorSaveBtn.style.color = '#4ade80';
-    } else {
-      editorSaveBtn.textContent = 'Error';
-      editorSaveBtn.style.background = 'rgba(220,38,38,0.2)';
-      editorSaveBtn.style.borderColor = 'rgba(220,38,38,0.6)';
-      editorSaveBtn.style.color = '#f87171';
-    }
-    setTimeout(() => {
-      editorSaveBtn.textContent = 'Save';
-      editorSaveBtn.style.background = 'rgba(245,196,66,0.1)';
-      editorSaveBtn.style.borderColor = 'rgba(245,196,66,0.4)';
-      editorSaveBtn.style.color = '#f5c542';
-    }, 1500);
-  });
+  // Shared Save-button behavior: Saving... → green Saved! / red Error → reset
+  function wireSaveButton(btn, saveFn, canSave = () => true) {
+    btn.addEventListener('click', async () => {
+      if (!canSave()) return;
+      btn.textContent = 'Saving...';
+      const ok = await saveFn();
+      if (ok) {
+        btn.textContent = 'Saved!';
+        btn.style.background = 'rgba(34,197,94,0.2)';
+        btn.style.borderColor = 'rgba(34,197,94,0.6)';
+        btn.style.color = '#4ade80';
+      } else {
+        btn.textContent = 'Error';
+        btn.style.background = 'rgba(220,38,38,0.2)';
+        btn.style.borderColor = 'rgba(220,38,38,0.6)';
+        btn.style.color = '#f87171';
+      }
+      setTimeout(() => {
+        btn.textContent = 'Save';
+        btn.style.background = 'rgba(245,196,66,0.1)';
+        btn.style.borderColor = 'rgba(245,196,66,0.4)';
+        btn.style.color = '#f5c542';
+      }, 1500);
+    });
+  }
+
+  wireSaveButton(editorSaveBtn, saveShipState);
   panel.appendChild(editorSaveBtn);
 
   document.body.appendChild(panel);
@@ -704,28 +700,7 @@ function initShipEditor() {
     saveBtn.style.background = 'rgba(245,196,66,0.1)';
     saveBtn.style.borderColor = 'rgba(245,196,66,0.4)';
   });
-  saveBtn.addEventListener('click', async () => {
-    if (!dSourceObj) return;
-    saveBtn.textContent = 'Saving...';
-    const ok = await saveDesignerState();
-    if (ok) {
-      saveBtn.textContent = 'Saved!';
-      saveBtn.style.background = 'rgba(34,197,94,0.2)';
-      saveBtn.style.borderColor = 'rgba(34,197,94,0.6)';
-      saveBtn.style.color = '#4ade80';
-    } else {
-      saveBtn.textContent = 'Error';
-      saveBtn.style.background = 'rgba(220,38,38,0.2)';
-      saveBtn.style.borderColor = 'rgba(220,38,38,0.6)';
-      saveBtn.style.color = '#f87171';
-    }
-    setTimeout(() => {
-      saveBtn.textContent = 'Save';
-      saveBtn.style.background = 'rgba(245,196,66,0.1)';
-      saveBtn.style.borderColor = 'rgba(245,196,66,0.4)';
-      saveBtn.style.color = '#f5c542';
-    }, 1500);
-  });
+  wireSaveButton(saveBtn, saveShipState, () => !!dSourceObj);
   designerHeader.appendChild(saveBtn);
 
   // Designer viewport
@@ -1075,40 +1050,6 @@ function initShipEditor() {
     // Position already synced to source in 'change' handler — save via Save button
   });
 
-  // Build full designer state from all editables for saving to disk
-  // Always use _idx keys for stable matching across reloads
-  function buildDesignerState() {
-    const state = {};
-    for (const obj of editableObjects) {
-      const children = {};
-      let hasChanges = false;
-      let idx = 0;
-      obj.traverse((child) => {
-        if (child === obj) return;
-        const key = `_${idx}`;
-        idx++;
-        if (!child.isMesh) return;
-        children[key] = {
-          x: +child.position.x.toFixed(4),
-          y: +child.position.y.toFixed(4),
-          z: +child.position.z.toFixed(4),
-        };
-        hasChanges = true;
-      });
-      if (hasChanges) state[obj.name] = children;
-    }
-    return state;
-  }
-
-  async function saveDesignerState() {
-    // Save to SpacetimeDB (source of truth)
-    const editableObjects = boat?.userData?.editableObjects;
-    if (editableObjects) {
-      updateObjectState('ship', buildUnifiedState(editableObjects));
-    }
-    return true;
-  }
-
   // Highlight selected child in preview
   const dBoxHelper = new THREE.BoxHelper(new THREE.Mesh(), 0x42c5f5);
   dBoxHelper.visible = false;
@@ -1370,8 +1311,6 @@ function initShipEditor() {
     isDragging: false,
     editorActive: false,
     renderDesigner,
-    buildEditorState,
-    buildDesignerState,
   };
 
   // ── Selection logic ──

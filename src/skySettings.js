@@ -12,8 +12,8 @@ export function initSkySettings(ocean, renderer) {
     { label: 'Mie Coefficient',get: () => skyUniforms['mieCoefficient'].value, set: v => { skyUniforms['mieCoefficient'].value = v; updateSun(); }, min: 0, max: 0.05, step: 0.0005 },
     { label: 'Mie Directional', get: () => skyUniforms['mieDirectionalG'].value, set: v => { skyUniforms['mieDirectionalG'].value = v; updateSun(); }, min: 0, max: 1, step: 0.01 },
     { label: 'Water Distortion', get: () => water.material.uniforms['distortionScale'].value, set: v => { water.material.uniforms['distortionScale'].value = v; }, min: 0, max: 10, step: 0.1 },
-    { label: 'Fog Density',    get: () => renderer.domElement.parentElement ? 0 : 0, set: () => {}, min: 0, max: 1, step: 0.01, custom: true },
   ];
+  // (Fog Density has its own row below — it reads scene.fog, not a uniform)
 
   // Build DOM
   const panel = document.createElement('div');
@@ -24,7 +24,6 @@ export function initSkySettings(ocean, renderer) {
   const rows = [];
 
   for (const s of sliders) {
-    if (s.custom) continue; // skip placeholder
     const row = document.createElement('div');
     row.className = 'sky-row';
 

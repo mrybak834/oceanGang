@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createDaoistPriest, updateDaoistPriest } from './daoistPriest.js';
+import { SOUND_OPTIONS, applySoundSwap, isSwappableSynth } from './patchParser.js';
 
 // ─── Island Trading System ───
 
@@ -114,6 +115,10 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
         <span class="trade-island-name"></span>
         <button class="trade-close">&times;</button>
       </div>
+      <div class="trade-tabs">
+        <button class="trade-tab active" data-tab="industry">Industry</button>
+        <button class="trade-tab" data-tab="instruments">Instruments</button>
+      </div>
       <div class="trade-panel trade-panel-industry">
       <div class="trade-type"></div>
       <div class="trade-level"></div>
@@ -122,6 +127,10 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
         <button class="trade-invest-btn">Invest</button>
         <span class="trade-cost"></span>
       </div>
+      </div>
+      <div class="trade-panel trade-panel-instruments trade-panel-hidden">
+        <div class="trade-scene-name"></div>
+        <div class="trade-instrument-list"></div>
       </div>
       <div class="trade-inventory"></div>
     </div>
@@ -142,6 +151,11 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
   const elCost = overlay.querySelector('.trade-cost');
   const elInv = overlay.querySelector('.trade-inventory');
   const elClose = overlay.querySelector('.trade-close');
+  const elTabs = [...overlay.querySelectorAll('.trade-tab')];
+  const elPanelIndustry = overlay.querySelector('.trade-panel-industry');
+  const elPanelInstruments = overlay.querySelector('.trade-panel-instruments');
+  const elSceneName = overlay.querySelector('.trade-scene-name');
+  const elInstList = overlay.querySelector('.trade-instrument-list');
 
   // ── Resource Tracker HUD ──
   const tracker = document.createElement('div');
@@ -166,6 +180,7 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     materials.Stone = 9999;
     materials.Iron = 9999;
     materials.Gold = 9999;
+    saveState();
     hudTimer = HUD_INTERVAL;
     refreshHud(0.01);
     if (menuOpen) refreshMenu();
@@ -173,9 +188,67 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
 
   let menuOpen = false;
   let activeIsland = null;
+  let activeTab = 'industry';
   let metDaoistPriest = false;
   let encounterStep = 0;
   let encounterActive = false;
+
+  // ── Persistence: materials + island development ──
+  const STORAGE_KEY = 'oceanGang_trading_v1';
+  let stateDirty = false;
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.materials) {
+        for (const name of Object.keys(materials)) {
+          materials[name] = Number(data.materials[name]) || 0;
+        }
+      }
+      if (data.islands) {
+        for (const isl of islands) {
+          const saved = data.islands[hashCoords(isl.x, isl.z)];
+          if (!saved) continue;
+          isl.level = Math.min(Math.max(saved.level | 0, 0), LEVELS.length - 1);
+          isl.stored = Number(saved.stored) || 0;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load trading state:', err);
+    }
+  }
+
+  function saveState() {
+    stateDirty = false;
+    try {
+      const islandState = {};
+      for (const isl of islands) {
+        if (isl.level > 0 || isl.stored >= 1) {
+          islandState[hashCoords(isl.x, isl.z)] = { level: isl.level, stored: Math.floor(isl.stored) };
+        }
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ materials, islands: islandState }));
+    } catch (err) {
+      console.warn('Failed to save trading state:', err);
+    }
+  }
+
+  loadState();
+
+  // ── Tab switching ──
+  function setActiveTab(tab) {
+    activeTab = tab;
+    for (const btn of elTabs) btn.classList.toggle('active', btn.dataset.tab === tab);
+    elPanelIndustry.classList.toggle('trade-panel-hidden', tab !== 'industry');
+    elPanelInstruments.classList.toggle('trade-panel-hidden', tab !== 'instruments');
+    refreshMenu();
+  }
+
+  for (const btn of elTabs) {
+    btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+  }
 
   const priestPreviewScene = new THREE.Scene();
   const priestPreviewCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
@@ -238,6 +311,7 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
   function openMenu(isl) {
     activeIsland = isl;
     menuOpen = true;
+    setActiveTab('industry');
     overlay.classList.remove('trade-hidden');
     const shouldMeetPriest = !metDaoistPriest && !isl.isTiny;
     setEncounterState(shouldMeetPriest);
@@ -269,6 +343,7 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     const cost = LEVELS[nextLevel].cost;
     if (crateManager.spendCrates(cost)) {
       activeIsland.level = nextLevel;
+      saveState();
       refreshMenu();
     }
   });
@@ -284,6 +359,86 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     setEncounterState(false);
     refreshMenu();
   });
+
+  // ── Instruments tab: buy scene layers with materials, swap sounds ──
+  function buildSoundOptionsHtml(currentSynth) {
+    const groups = {};
+    for (const opt of SOUND_OPTIONS) {
+      (groups[opt.group] ??= []).push(opt);
+    }
+    return Object.entries(groups).map(([group, opts]) =>
+      `<optgroup label="${group}">${opts.map((o) =>
+        `<option value="${o.value}"${o.value === currentSynth ? ' selected' : ''}>${o.label}</option>`
+      ).join('')}</optgroup>`
+    ).join('');
+  }
+
+  let instTabSignature = '';
+
+  function refreshInstrumentsTab() {
+    const isl = activeIsland;
+    if (!isl) return;
+    const sceneInstruments = instrumentRegistry.getScene(isl.sceneName);
+
+    // Skip re-render (which would close an open dropdown) unless something changed
+    const signature = [isl.sceneName, ...sceneInstruments.map((inst) =>
+      `${inst.varName}:${inst.synthType}:${instrumentRegistry.isUnlocked(isl.sceneName, inst.varName) ? 1 : 0}:${canAfford(materials, inst.cost) ? 1 : 0}`
+    )].join('|');
+    if (signature === instTabSignature) return;
+    instTabSignature = signature;
+
+    elSceneName.textContent = `♪ ${isl.sceneName}`;
+
+    elInstList.innerHTML = sceneInstruments.map((inst, index) => {
+      const owned = instrumentRegistry.isUnlocked(isl.sceneName, inst.varName);
+      const free = !Object.keys(inst.cost).length;
+
+      let meta, action;
+      if (owned) {
+        meta = free ? 'Free — ambient base' : 'Owned';
+        action = isSwappableSynth(inst.synthType)
+          ? `<select class="trade-sound-select" data-var="${inst.varName}">${buildSoundOptionsHtml(inst.synthType)}</select>`
+          : '';
+      } else {
+        const affordable = canAfford(materials, inst.cost);
+        meta = formatCost(inst.cost);
+        action = `<button class="trade-buy-btn" data-index="${index}"${affordable ? '' : ' disabled'}>Buy</button>`;
+      }
+
+      const blocked = !owned && !canAfford(materials, inst.cost);
+      return `
+        <div class="trade-instrument-row${blocked ? ' afford-blocked' : ''}">
+          <div class="trade-instrument-copy">
+            <div class="trade-instrument-name">${owned ? '✓' : '♪'} ${inst.displayName}</div>
+            <div class="trade-instrument-meta">${meta}</div>
+          </div>
+          ${action}
+        </div>`;
+    }).join('');
+
+    elInstList.querySelectorAll('.trade-buy-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const inst = sceneInstruments[Number(btn.dataset.index)];
+        if (!inst || !canAfford(materials, inst.cost)) return;
+        for (const [name, amount] of Object.entries(inst.cost)) {
+          materials[name] -= amount;
+        }
+        instrumentRegistry.unlock(isl.sceneName, inst.varName);
+        saveState();
+        refreshMenu();
+      });
+    });
+
+    elInstList.querySelectorAll('.trade-sound-select').forEach((select) => {
+      select.addEventListener('change', () => {
+        const newCode = applySoundSwap(instrumentRegistry.getSceneCode(isl.sceneName), select.dataset.var, select.value);
+        instrumentRegistry.setSceneCode(isl.sceneName, newCode);
+        document.dispatchEvent(new CustomEvent('oceangang:sound-swap', {
+          detail: { sceneName: isl.sceneName, code: newCode },
+        }));
+      });
+    });
+  }
 
   function refreshMenu() {
     const isl = activeIsland;
@@ -310,6 +465,8 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
       elBtn.style.display = 'none';
       elCost.textContent = 'Max level';
     }
+
+    if (activeTab === 'instruments') refreshInstrumentsTab();
 
     // Inventory
     elInv.innerHTML = Object.entries(materials)
@@ -352,6 +509,8 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
     }
 
     hudEls.islands.textContent = `${developed} / ${islands.length}`;
+
+    if (stateDirty) saveState();
   }
 
   // ── Per-frame update — collision + production ──
@@ -399,6 +558,7 @@ export function createTradingSystem(scene, islandData, crateManager, instrumentR
         const amount = Math.floor(isl.stored);
         materials[isl.type.material] += amount;
         isl.stored -= amount;
+        stateDirty = true;
       }
 
       // Outer barrier ring — flag this island

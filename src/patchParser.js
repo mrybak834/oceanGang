@@ -146,8 +146,11 @@ export const SOUND_OPTIONS = [
 
 // Replace the .s() or sound() call for a specific instrument variable
 export function applySoundSwap(code, varName, newSynth) {
+  // NOTE: block terminator must be next `let`, `stack(`, or true end-of-input.
+  // `\s*$` would match every line end under the m flag and truncate the block
+  // to its first line, so end-of-input is spelled `\s*(?![\s\S])`.
   const blockRe = new RegExp(
-    `(^let\\s+${varName}\\s*=\\s*[\\s\\S]*?)(?=^\\s*let\\s+\\w+\\s*=|^\\s*stack\\(|\\s*$)`,
+    `(^let\\s+${varName}\\s*=\\s*[\\s\\S]*?)(?=^\\s*let\\s+\\w+\\s*=|^\\s*stack\\(|\\s*(?![\\s\\S]))`,
     'gm'
   );
   return code.replace(blockRe, (block) => {
@@ -169,9 +172,41 @@ export function isSwappableSynth(synthType) {
   return !!synthType && /^[\w]+$/.test(synthType);
 }
 
+// Rebuild scene code with locked instrument blocks removed and the stack()
+// call rewritten to only reference unlocked layers. Returns the original code
+// untouched when everything is unlocked (preserves comments/formatting).
+export function buildGatedCode(code, isUnlocked) {
+  if (typeof code !== 'string' || !code) return code;
+  const instruments = parseStrudelPatch(code);
+  if (!instruments.length) return code;
+
+  let unlocked = instruments.filter((inst) => isUnlocked(inst.varName));
+  // Never gate down to silence — the base layer always plays
+  if (!unlocked.length) unlocked = [instruments[0]];
+  if (unlocked.length === instruments.length) return code;
+
+  let gated = code;
+  for (const inst of instruments) {
+    if (unlocked.includes(inst)) continue;
+    gated = gated.replace(inst.codeBlock, '');
+  }
+
+  const stackCall = findCallSource(gated, 'stack');
+  if (stackCall) {
+    const stackNames = new Set(extractStackOrder(code));
+    const names = unlocked
+      .filter((inst) => stackNames.has(inst.varName))
+      .map((inst) => inst.varName);
+    gated = gated.replace(stackCall, `stack(${(names.length ? names : [unlocked[0].varName]).join(', ')})`);
+  }
+
+  return gated.replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function parseStrudelPatch(code) {
   const stackOrder = extractStackOrder(code);
-  const blocks = [...code.matchAll(/^let\s+(\w+)\s*=\s*([\s\S]*?)(?=^\s*let\s+\w+\s*=|^\s*stack\(|\s*$)/gm)];
+  // See applySoundSwap for why end-of-input is `\s*(?![\s\S])` and not `\s*$`
+  const blocks = [...code.matchAll(/^let\s+(\w+)\s*=\s*([\s\S]*?)(?=^\s*let\s+\w+\s*=|^\s*stack\(|\s*(?![\s\S]))/gm)];
   const stackIndexByName = new Map(stackOrder.map((name, index) => [name, index]));
 
   return blocks.map((match, fallbackIndex) => {

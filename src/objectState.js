@@ -11,23 +11,6 @@
 //   }
 // }
 
-// Merge old split editor + designer format into unified format
-export function mergeState(editor, designer) {
-  const unified = {};
-  if (editor) {
-    for (const [name, pos] of Object.entries(editor)) {
-      unified[name] = { pos };
-    }
-  }
-  if (designer) {
-    for (const [name, children] of Object.entries(designer)) {
-      if (!unified[name]) unified[name] = {};
-      unified[name].children = children;
-    }
-  }
-  return unified;
-}
-
 // Split unified format back into editor + designer for apply functions
 export function splitState(unified) {
   if (!unified || typeof unified !== 'object') return { editor: null, designer: null };

@@ -214,7 +214,8 @@ export function updateChat() {
     const age = now - b.startTime;
 
     if (age > BUBBLE_DURATION) {
-      b.boat.remove(b.sprite);
+      // Sprites are added to the scene, not the boat (see createBubble)
+      scene.remove(b.sprite);
       b.sprite.material.map.dispose();
       b.sprite.material.dispose();
       bubbles.splice(i, 1);

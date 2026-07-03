@@ -1,49 +1,41 @@
 # Ocean Gang Implementation Progress
 
-Updated: 2026-03-10
+Updated: 2026-07-03
 
 ## Completed
 
+### Music runtime
 - Replaced the remote `strudel.cc` iframe with a local embedded `@strudel/repl` instance.
-- Kept the Strudel REPL and preset grid visible in the music panel at the same time.
-- Unified music playback onto the embedded REPL runtime so the app no longer uses a separate `@strudel/web` playback path.
-- Wired Ctrl+Enter / REPL evaluate into app state updates through `oceangang:music-scene-sync` and `oceangang:music-playback`.
-- Made preset clicks load the same scene into the shared REPL and play through the same runtime.
-- Wired the music volume slider to the shared Strudel output gain instead of rewriting scene code.
-- Fixed soundfont fallback so high `gm_fx_crystal` notes can fall through to alternate font variants instead of hard-failing on one missing pitch zone.
-- Added `src/patchParser.js` for extracting scene layers, stack order, params, complexity, and base material costs.
-- Added `src/instruments.js` runtime registry for parsed scene catalogs, unlocked layers, scene-code sync, and persistence.
-- Wired `main.js` so live REPL scene updates feed the instrument registry.
-- Added an Instruments tab to the trading menu with stable island-to-scene assignment and material-based layer unlock purchases.
+- Unified music playback onto the embedded REPL runtime (no separate `@strudel/web` path).
+- Wired Ctrl+Enter / REPL evaluate into app state via `oceangang:music-scene-sync` and `oceangang:music-playback`.
+- Music volume slider drives the shared Strudel output gain.
+- **Fixed (issue #1):** switching preset buttons no longer bleeds audio from the previous scene. Stopping now calls superdough's `resetGlobalEffects()`, which hard-kills all voices *and* effect tails (reverb/delay) instead of suspending every AudioContext on the page (which also silenced ship SFX). The AudioContext monkey-patch in `index.html` is gone.
 
-## In Progress
+### Instrument economy (tickets #13, #14)
+- `src/patchParser.js` — parses Strudel patches into instruments (every `let` block = one instrument), auto-generates costs from complexity + stack position, builds gated code.
+- **Fixed:** the block parser previously truncated every instrument to its first line (`\s*$` lookahead matched every line end), so synth types, params, complexity, and costs were wrong for multi-line instruments.
+- `src/instruments.js` — registry with unlock state, scene-code sync, `buildSceneCode()` (gated playback code), persistence in localStorage.
+- **Playback is gated by unlock state:** all evaluation paths (preset cards, Ctrl+Enter, scrubber) play only unlocked layers; the editor still shows the full scene. Buying a layer while its scene plays re-evaluates live, so the new instrument audibly joins.
+- **Trading menu has Industry / Instruments tabs:** each island stocks the layers of its stably-assigned scene; Buy deducts materials and unlocks; owned swappable instruments get a sound-swap dropdown.
+- Preset cards show an "n/m layers" unlock badge.
+- Materials, island development levels, and stored production persist in localStorage (`oceanGang_trading_v1`).
 
-- Instrument trading system polish and persistence validation.
-- Deeper parser robustness for more complex Strudel expressions.
-- Music-system rebuild from unlock state rather than plain scene drafts.
-
-## Started In This Pass
-
-- Added `src/patchParser.js`.
-- Added `src/instruments.js`.
-- Extended `src/trading.js` with:
-  - Industry / Instruments tabs
-  - scene assignment per island
-  - instrument list rendering
-  - unlock purchases using existing material inventory
-- Wired registry updates from music sync events in `src/main.js`.
+### Infrastructure
+- `vitest` test suite (`npm test`) covering the patch parser, cost tiers, gated-code builder, sound swap, and the instrument registry (24 tests). `vitest.config.js` is standalone so tests do not load the dev-server plugins.
+- **Fixed:** `vite build` (and therefore the GitHub Pages deploy) had been broken since the SpacetimeDB refactor — `multiplayer.js` statically imported the gitignored generated bindings. Now loaded via `import.meta.glob`, so builds succeed without bindings and multiplayer degrades gracefully.
+- CI runs `npm test` before building.
+- Scene library extracted from `music.js` into `src/scenes.js`.
+- Removed dead `src/strudelSoundfonts.js` (orphaned by the "single strudel" refactor) and the unused `@strudel/web` / `@strudel/soundfonts` dependencies; `superdough` is now an explicit dependency.
 
 ## Next Steps
 
-- Rebuild scene playback from unlocked layers so buying instruments changes what is actually heard.
-- Add per-instrument parameter overrides and UI.
-- Persist and restore materials explicitly.
-- Add better parser coverage for nested/repeated method calls.
-- Add live craft/diff flow for newly created REPL `let` blocks.
+- Per-instrument parameter override UI (registry `setOverride` exists; no sliders yet — ticket #25).
+- Live craft/diff flow for new REPL `let` blocks (crafting costs — ticket #23).
+- Deeper parser coverage for exotic nested Strudel expressions.
+- Purchase toasts / unlock animations (ticket #39).
 
 ## Known Gaps
 
-- Current scene playback still plays the full edited scene; instrument unlocks are tracked in the economy layer but do not yet gate audible layers.
-- The parser is intentionally lightweight and may miss edge cases in complex nested Strudel expressions.
-- Purchased instruments persist through the registry layer, but materials do not yet have separate persistence.
-- Per-instrument parameter editing is not implemented yet.
+- Param overrides are stored but not yet applied to generated code.
+- The parser is intentionally regex-based and may miss pathological nested expressions (covered scenes all parse correctly — see tests).
+- Crates (the invest currency) are not persisted; materials and island levels are.

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ocean Gang</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -33,7 +34,6 @@
           <button id="music-save" class="music-btn music-btn-save" title="Save current patch">Save</button>
           <button id="music-save-variation" class="music-btn music-btn-save" title="Save as variation">Save As Variation</button>
           <button id="music-delete-variation" class="music-btn music-btn-save" title="Delete current variation">Delete Variation</button>
-          <button id="music-grid-btn" class="music-btn music-btn-grid" title="Preset grid">&#9638;</button>
           <button id="music-close" class="music-btn music-btn-close" title="Close (M)">&times;</button>
         </div>
       </div>
@@ -53,25 +53,6 @@
       <div id="music-resize-handle" class="music-resize-handle"></div>
     </div>
 
-    <script>
-      // Capture every AudioContext created on the page so we can suspend them all
-      // on music stop. Must run before any ES module (Strudel) creates a context.
-      (() => {
-        const Original = window.AudioContext || window.webkitAudioContext;
-        const contexts = new Set();
-        class Patched extends Original {
-          constructor(...args) {
-            super(...args);
-            contexts.add(this);
-          }
-        }
-        Patched.prototype = Original.prototype;
-        Object.setPrototypeOf(Patched, Original);
-        window.__allAudioContexts = contexts;
-        window.AudioContext = Patched;
-        if (window.webkitAudioContext) window.webkitAudioContext = Patched;
-      })();
-    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
